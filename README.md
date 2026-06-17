@@ -1,17 +1,21 @@
 # Split ── Bedrock/Java Dynamic Placeholder Plugin
 
-A lightweight, high-performance, and secure Minecraft plugin designed for Spigot/Paper servers. It interfaces with the **Floodgate API** to serve different placeholder results depending on whether the player is using **Minecraft: Java Edition** or **Minecraft: Bedrock Edition** (via Geyser).
+A lightweight, high-performance, and secure Minecraft plugin designed for Spigot/Paper servers. It interfaces with the **Floodgate API** to serve different placeholder results depending on whether the player is using **Minecraft: Java Edition** or **Minecraft: Bedrock Edition** (via Geyser), alongside advanced switch-case logic and math/logical expression evaluations.
 
 ---
 
 ## 🇬🇧 English Documentation
 
 ### Features
-* **Dual-Platform Handling:** Dynamically evaluates and responds with different template values for Bedrock and Java clients.
+* **Polymorphic Placeholders:** Supports `simple`, `switch`, and `expression` types for dynamic evaluation.
+* **Dual-Platform Handling (`simple`):** Serves different template values for Bedrock and Java clients.
+* **Case-Switch Mapping (`switch`):** Resolves a target placeholder and matches it against custom case keys with a fallback `default` case.
+* **Boolean Expression Evaluator (`expression`):** Evaluates mathematical/relational expressions and returns a true or false value.
 * **PlaceholderAPI Integration:** Registers custom `%split_<key>%` placeholders and resolves nested placeholders (e.g. `%player_name%`) in the returned values.
 * **100% Thread-Safe & Atomic:** Custom configuration loading with atomic volatile swaps. Zero locks are held during placeholder requests.
 * **Asynchronous Reloading:** Config reloads happen in a background thread, preventing server lag spikes (disk I/O) on the main thread.
 * **Circular Reference Protection:** Safe evaluation using `ThreadLocal` recursion detectors. Prevents admin formatting mistakes from crashing the server with `StackOverflowError`.
+* **Safe Custom Expression Parser:** Uses a built-in, lightweight, and 100% secure tokenizer. No scripting engine (like JavaScript Nashorn) is utilized, completely eliminating code-injection exploits.
 * **Robust Configuration Reloading:** In the event of a YAML formatting syntax error, the plugin logs the details and maintains the current running configurations instead of crashing.
 
 ### Commands & Permissions
@@ -41,26 +45,46 @@ invalid-usage: "%prefix%&cInvalid usage! &fUsage: /split reload"
 ```
 
 #### `placeholders.yml`
-Define your placeholders and their corresponding values for Java and Bedrock clients:
+Define your placeholders and their corresponding evaluation rules:
 ```yaml
+# 1. Simple Platform Split Type
 example:
-  java: "%player_name%"
-  bedrock: "_%player_name%"
+  type: "simple"
+  java: "Java"
+  bedrock: "Bedrock"
+
+# 2. Switch Case Type
+example_switch:
+  type: "switch"
+  switch: "%luckperms_highest_group_by_weight%"
+  case:
+    "coal": "Coal"
+    default: "Player"
+
+# 3. Relational/Boolean Expression Type
+# Supported operators: >, <, >=, <=, ==, !=, &&, ||, AND, OR.
+# Alternative comparison symbols: >> (greater than), << (less than), <> (not equal).
+example_expression:
+  type: "expression"
+  formule: "%player_ping% >> 60 && %player_ping% << 120"
+  true: "Ping is stable"
+  false: "Ping is not stable"
 ```
-* Custom Placeholder: `%split_example%`
-  * Resolves to: `%player_name%` for Java players.
-  * Resolves to: `_%player_name%` for Bedrock players.
 
 ---
 
 ## 🇹🇷 Türkçe Dokümantasyon
 
 ### Özellikler
-* **Çift Platform Desteği:** Bedrock ve Java istemcileri için dinamik olarak farklı placeholder çıktısı sağlar.
+* **Polimorfik Placeholder'lar:** Dinamik çözümleme için `simple`, `switch` ve `expression` tiplerini destekler.
+* **Platform Ayrımı (`simple`):** Bedrock ve Java istemcileri için farklı şablon çıktıları sağlar.
+* **Eşleşme Eşitleme (`switch`):** Belirtilen hedef placeholder değerini çözümler ve tanımlı durumlarla (case) eşleştirir; eşleşme yoksa `default` değerini döndürür.
+* **Mantıksal Karşılaştırma (`expression`):** Matematiksel/mantıksal formülleri çözümler ve sonucuna göre true veya false değerini döndürür.
 * **PlaceholderAPI Entegrasyonu:** Özel `%split_<anahtar>%` placeholder'ları tanımlayabilir ve bunların içindeki diğer placeholder'ları (örn. `%player_name%`) otomatik olarak çözümler.
 * **%100 Thread-Safe & Atomik:** Atomik geçişli ve uçucu (`volatile`) değişken yapılandırması sayesinde placeholder sorguları sırasında sunucu üzerinde sıfır kilitlenme (lock contention) oluşturur.
 * **Asenkron Yenileme:** Yapılandırma yenileme işlemleri arka planda asenkron olarak gerçekleşir. Bu sayede sunucu ana iş parçacığında (main thread) disk okuma kaynaklı FPS/TPS düşüşleri yaşanmaz.
 * **Kısır Döngü Koruması:** `ThreadLocal` tabanlı döngü algılayıcılar sayesinde yönetici hatalarından kaynaklanabilecek circular-reference (iç içe sonsuz döngü) durumlarında sunucunun `StackOverflowError` ile çökmesi veya lag oluşması engellenir.
+* **Güvenli Özel Formül Motoru:** JavaScript (`Nashorn`) gibi ağır, kullanımdan kaldırılmış ve uzaktan kod yürütme (`exploit`) riski taşıyan yapılar yerine; tamamen güvenli, yerleşik ve hafif bir metin parçalayıcı kullanılır.
 * **Güvenli Yeniden Yükleme:** Konfigürasyon dosyalarında bir YAML sözdizimi hatası olursa, plugin hatayı günlüğe kaydeder ve çalışmasını bozmadan eski kararlı yapılandırmayı bellekte tutmaya devam eder.
 
 ### Komutlar ve Yetkiler
@@ -90,12 +114,28 @@ invalid-usage: "%prefix%&cGeçersiz kullanım! &fKullanım: /split reload"
 ```
 
 #### `placeholders.yml`
-Platforma göre dönmesini istediğiniz placeholder eşleştirmelerini tanımlayın:
+Placeholder tanımlamaları ve platform/koşul kuralları:
 ```yaml
+# 1. Basit Platform Ayrım Tipi
 example:
-  java: "%player_name%"
-  bedrock: "_%player_name%"
+  type: "simple"
+  java: "Java"
+  bedrock: "Bedrock"
+
+# 2. Değer Eşleştirme (Switch) Tipi
+example_switch:
+  type: "switch"
+  switch: "%luckperms_highest_group_by_weight%"
+  case:
+    "coal": "Coal"
+    default: "Player"
+
+# 3. Matematiksel/Mantıksal Koşul (Expression) Tipi
+# Desteklenen işlemler: >, <, >=, <=, ==, !=, &&, ||, AND, OR.
+# Alternatif karşılaştırma sembolleri: >> (büyüktür), << (küçüktür), <> (eşit değildir).
+example_expression:
+  type: "expression"
+  formule: "%player_ping% >> 60 && %player_ping% << 120"
+  true: "Ping is stable"
+  false: "Ping is not stable"
 ```
-* Oluşan Placeholder: `%split_example%`
-  * Java oyuncuları için: `%player_name%` olarak çözümlenir.
-  * Bedrock oyuncuları için: `_%player_name%` olarak çözümlenir.
