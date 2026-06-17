@@ -2,6 +2,7 @@ package com.siberanka.split.placeholder;
 
 import com.siberanka.split.SplitPlugin;
 import com.siberanka.split.config.ConfigManager;
+import com.siberanka.split.placeholder.model.SplitPlaceholder;
 import me.clip.placeholderapi.PlaceholderAPI;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.OfflinePlayer;
@@ -31,7 +32,8 @@ public class SplitPlaceholderExpansion extends PlaceholderExpansion {
 
     @Override
     public String getVersion() {
-        return "1.0.0-beta";
+        // Retrieve version dynamically from the plugin description (pom.xml filtered)
+        return plugin.getDescription().getVersion();
     }
 
     @Override
@@ -47,8 +49,8 @@ public class SplitPlaceholderExpansion extends PlaceholderExpansion {
         }
 
         String paramLower = params.toLowerCase();
-        ConfigManager.PlaceholderPair pair = config.getPlaceholder(paramLower);
-        if (pair == null) {
+        SplitPlaceholder placeholder = config.getPlaceholder(paramLower);
+        if (placeholder == null) {
             return null; // Placeholder key not registered
         }
 
@@ -62,8 +64,8 @@ public class SplitPlaceholderExpansion extends PlaceholderExpansion {
         }
 
         try {
-            boolean isBedrock = plugin.isBedrock(player);
-            String template = isBedrock ? pair.getBedrockVal() : pair.getJavaVal();
+            // Resolve placeholder based on its polymorphic type rules (simple, switch, expression)
+            String template = placeholder.resolve(plugin, player);
 
             if (template == null || template.isEmpty()) {
                 return "";
@@ -76,4 +78,3 @@ public class SplitPlaceholderExpansion extends PlaceholderExpansion {
         }
     }
 }
-

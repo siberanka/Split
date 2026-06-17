@@ -1,13 +1,93 @@
-# ==========================================
-# Split Placeholders Configuration
-# Define different values for Java and Bedrock players.
-# Nested placeholders (like %player_name%) will be evaluated automatically.
-# ==========================================
+# ==============================================================================
+# Split - Placeholders Configuration / Wiki & Guide
+# ==============================================================================
+#
+# [ENGLISH WIKI]
+# This file defines dynamic placeholders resolving under %split_<key>%.
+# Three placeholder types are supported:
+#
+# 1. simple:
+#    Resolves different values depending on the player platform (Java or Bedrock).
+#    Example:
+#    example_key:
+#      type: "simple"
+#      java: "Java Player"
+#      bedrock: "Bedrock Player"
+#
+# 2. switch:
+#    Resolves a target string (usually another placeholder) and matches it
+#    against configured cases. Falls back to "default" if no case matches.
+#    Example:
+#    example_key:
+#      type: "switch"
+#      switch: "%luckperms_highest_group_by_weight%"
+#      case:
+#        "admin": "Administrator"
+#        default: "Regular Player"
+#
+# 3. expression:
+#    Evaluates a boolean/mathematical expression and returns "true" or "false" value.
+#    Supports: >, <, >=, <=, ==, !=, &&, ||, AND, OR.
+#    Alternative operators like >> (greater than) and << (less than) are also supported.
+#    Example:
+#    example_key:
+#      type: "expression"
+#      formule: "%player_ping% >> 60 && %player_ping% << 120"
+#      true: "Stable Ping"
+#      false: "Unstable Ping"
+#
+# ------------------------------------------------------------------------------
+#
+# [TÜRKÇE VİKİ]
+# Bu dosya %split_<anahtar>% altında çözümlenecek dinamik placeholder'ları tanımlar.
+# Üç farklı tip desteklenmektedir:
+#
+# 1. simple:
+#    Oyuncu platformuna göre (Java veya Bedrock) farklı çıktılar döndürür.
+#    Örnek:
+#    example_key:
+#      type: "simple"
+#      java: "Java Oyuncusu"
+#      bedrock: "Bedrock Oyuncusu"
+#
+# 2. switch:
+#    Hedeflenen bir metni (genellikle başka bir placeholder) çözümler ve tanımlı
+#    durumlarla eşleştirir. Eşleşme olmazsa "default" değerini döndürür.
+#    Örnek:
+#    example_key:
+#      type: "switch"
+#      switch: "%luckperms_highest_group_by_weight%"
+#      case:
+#        "admin": "Yönetici"
+#        default: "Normal Oyuncu"
+#
+# 3. expression:
+#    Matematiksel/mantıksal bir koşulu çözümler ve "true" ya da "false" değerini döndürür.
+#    Desteklenenler: >, <, >=, <=, ==, !=, &&, ||, AND, OR.
+#    Alternatif olarak >> (büyüktür) ve << (küçüktür) işlemleri de kullanılabilir.
+#    Örnek:
+#    example_key:
+#      type: "expression"
+#      formule: "%player_ping% >> 60 && %player_ping% << 120"
+#      true: "Stabil Ping"
+#      false: "Stabil Olmayan Ping"
+#
+# ==============================================================================
 
 example:
-  java: "%player_name%"
-  bedrock: "_%player_name%"
+  type: "simple"
+  java: "Java"
+  bedrock: "Bedrock"
 
-example2:
-  java: "%player_level%"
-  bedrock: "_%player_level%"
+example_switch:
+  type: "switch"
+  switch: "%luckperms_highest_group_by_weight%"
+  case:
+    "coal": "Coal"
+    default: "Player"
+
+example_expression:
+  type: "expression"
+  formule: "%player_ping% >> 60 && %player_ping% << 120"
+  true: "Ping is stable"
+  false: "Ping is not stable"

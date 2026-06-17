@@ -1,6 +1,10 @@
 package com.siberanka.split.config;
 
 import com.siberanka.split.SplitPlugin;
+import com.siberanka.split.placeholder.model.SplitPlaceholder;
+import com.siberanka.split.placeholder.model.SimplePlaceholder;
+import com.siberanka.split.placeholder.model.SwitchPlaceholder;
+import com.siberanka.split.placeholder.model.ExpressionPlaceholder;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -68,16 +72,59 @@ public class ConfigManager {
         }
 
         // Read placeholders.yml
-        Map<String, PlaceholderPair> placeholders = new HashMap<>();
+        Map<String, SplitPlaceholder> placeholders = new HashMap<>();
         ConfigurationSection root = placeholdersYaml.getConfigurationSection("");
         if (root != null) {
             for (String key : root.getKeys(false)) {
                 if (placeholdersYaml.isConfigurationSection(key)) {
                     ConfigurationSection sec = placeholdersYaml.getConfigurationSection(key);
                     if (sec != null) {
-                        String javaVal = sec.getString("java", "");
-                        String bedrockVal = sec.getString("bedrock", "");
-                        placeholders.put(key.toLowerCase(), new PlaceholderPair(javaVal, bedrockVal));
+                        String type = sec.getString("type", "").toLowerCase();
+
+                        // Infer type if missing
+                        if (type.isEmpty()) {
+                            if (sec.contains("switch")) {
+                                type = "switch";
+                            } else if (sec.contains("formule")) {
+                                type = "expression";
+                            } else {
+                                type = "simple";
+                            }
+                        }
+
+                        SplitPlaceholder placeholderObj = null;
+                        switch (type) {
+                            case "switch":
+                                String switchVal = sec.getString("switch", "");
+                                Map<String, String> cases = new HashMap<>();
+                                ConfigurationSection caseSec = sec.getConfigurationSection("case");
+                                if (caseSec != null) {
+                                    for (String caseKey : caseSec.getKeys(false)) {
+                                        // Store in lowercase and as-is for maximum compatibility
+                                        String caseVal = caseSec.getString(caseKey, "");
+                                        cases.put(caseKey.toLowerCase(), caseVal);
+                                        cases.put(caseKey, caseVal);
+                                    }
+                                }
+                                placeholderObj = new SwitchPlaceholder(switchVal, cases);
+                                break;
+                            case "expression":
+                                String formule = sec.getString("formule", "");
+                                String trueVal = sec.getString("true", "");
+                                String falseVal = sec.getString("false", "");
+                                placeholderObj = new ExpressionPlaceholder(formule, trueVal, falseVal);
+                                break;
+                            case "simple":
+                            default:
+                                String javaVal = sec.getString("java", "");
+                                String bedrockVal = sec.getString("bedrock", "");
+                                placeholderObj = new SimplePlaceholder(javaVal, bedrockVal);
+                                break;
+                        }
+
+                        if (placeholderObj != null) {
+                            placeholders.put(key.toLowerCase(), placeholderObj);
+                        }
                     }
                 }
             }
@@ -98,31 +145,13 @@ public class ConfigManager {
         return configData;
     }
 
-    public static class PlaceholderPair {
-        private final String javaVal;
-        private final String bedrockVal;
-
-        public PlaceholderPair(String javaVal, String bedrockVal) {
-            this.javaVal = javaVal != null ? javaVal : "";
-            this.bedrockVal = bedrockVal != null ? bedrockVal : "";
-        }
-
-        public String getJavaVal() {
-            return javaVal;
-        }
-
-        public String getBedrockVal() {
-            return bedrockVal;
-        }
-    }
-
     public static class ConfigData {
         private final boolean debug;
         private final boolean defaultToJavaOnNull;
         private final Map<String, String> messages;
-        private final Map<String, PlaceholderPair> placeholders;
+        private final Map<String, SplitPlaceholder> placeholders;
 
-        public ConfigData(boolean debug, boolean defaultToJavaOnNull, Map<String, String> messages, Map<String, PlaceholderPair> placeholders) {
+        public ConfigData(boolean debug, boolean defaultToJavaOnNull, Map<String, String> messages, Map<String, SplitPlaceholder> placeholders) {
             this.debug = debug;
             this.defaultToJavaOnNull = defaultToJavaOnNull;
             this.messages = Collections.unmodifiableMap(messages);
@@ -141,11 +170,11 @@ public class ConfigManager {
             return messages.getOrDefault(key, def);
         }
 
-        public PlaceholderPair getPlaceholder(String key) {
+        public SplitPlaceholder getPlaceholder(String key) {
             return placeholders.get(key);
         }
 
-        public Map<String, PlaceholderPair> getPlaceholders() {
+        public Map<String, SplitPlaceholder> getPlaceholders() {
             return placeholders;
         }
     }
