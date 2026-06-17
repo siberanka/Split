@@ -1,0 +1,13 @@
+# ==========================================
+# Split Placeholders Configuration
+# Define different values for Java and Bedrock players.
+# Nested placeholders (like %player_name%) will be evaluated automatically.
+# ==========================================
+
+example:
+  java: "%player_name%"
+  bedrock: "_%player_name%"
+
+example2:
+  java: "%player_level%"
+  bedrock: "_%player_level%"

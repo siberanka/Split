@@ -1,0 +1,13 @@
+# ==========================================
+# Split Messages Configuration
+# Supports legacy colors (&a) and HEX colors (&#ff0000)
+# ==========================================
+
+prefix: "&8[&bSplit&8] &r"
+
+# Command Messages
+no-permission: "%prefix%&cBu komutu kullanmak için yetkiniz yok!"
+only-players: "%prefix%&cBu komut sadece oyuncular tarafından kullanılabilir!"
+reload-success: "%prefix%&aYapılandırma dosyaları başarıyla yenilendi."
+reload-failure: "%prefix%&cYapılandırma dosyaları yenilenirken bir hata oluştu! Detaylar için konsola göz atın."
+invalid-usage: "%prefix%&cGeçersiz kullanım! &fKullanım: /split reload"

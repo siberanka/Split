@@ -1,0 +1,10 @@
+# ==========================================
+# Split Plugin Configuration
+# Developed by SiberAnka
+# ==========================================
+
+# Enable debug logging in the console
+debug: false
+
+# Fallback to Java placeholder values if a player cannot be resolved (e.g. offline player queries)
+default-to-java-on-null: true

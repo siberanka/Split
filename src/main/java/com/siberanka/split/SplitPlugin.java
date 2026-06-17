@@ -1,0 +1,120 @@
+package com.siberanka.split;
+
+import com.siberanka.split.command.SplitCommand;
+import com.siberanka.split.config.ConfigManager;
+import com.siberanka.split.placeholder.SplitPlaceholderExpansion;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.plugin.java.JavaPlugin;
+
+import java.util.logging.Level;
+
+public final class SplitPlugin extends JavaPlugin {
+
+    private ConfigManager configManager;
+    private SplitPlaceholderExpansion placeholderExpansion;
+    private boolean floodgatePresent;
+    private boolean placeholderApiPresent;
+
+    @Override
+    public void onEnable() {
+        // Initialize Configuration Manager
+        this.configManager = new ConfigManager(this);
+        try {
+            this.configManager.load();
+            getLogger().info("Configurations loaded successfully.");
+        } catch (Exception e) {
+            getLogger().log(Level.SEVERE, "Could not load configuration files! Using internal defaults where possible.", e);
+        }
+
+        // Check for integrations
+        checkIntegrations();
+
+        // Register Command
+        SplitCommand commandExecutor = new SplitCommand(this);
+        if (getCommand("split") != null) {
+            getCommand("split").setExecutor(commandExecutor);
+            getCommand("split").setTabCompleter(commandExecutor);
+        }
+
+        // Register Placeholders
+        if (placeholderApiPresent) {
+            this.placeholderExpansion = new SplitPlaceholderExpansion(this);
+            this.placeholderExpansion.register();
+            getLogger().info("PlaceholderAPI expansion registered successfully.");
+        } else {
+            getLogger().warning("PlaceholderAPI not found! Custom placeholders (%split_<key>%) will not be registered.");
+        }
+
+        getLogger().info("Split plugin version " + getDescription().getVersion() + " has been enabled.");
+    }
+
+    @Override
+    public void onDisable() {
+        // Unregister PAPI Expansion to prevent memory/classloader leaks during reloads
+        if (placeholderExpansion != null) {
+            try {
+                placeholderExpansion.unregister();
+                getLogger().info("PlaceholderAPI expansion unregistered successfully.");
+            } catch (Throwable t) {
+                getLogger().log(Level.WARNING, "Error unregistering PlaceholderAPI expansion:", t);
+            }
+            this.placeholderExpansion = null;
+        }
+
+        getLogger().info("Split plugin has been disabled.");
+    }
+
+    private void checkIntegrations() {
+        // Check Floodgate API
+        try {
+            Class.forName("org.geysermc.floodgate.api.FloodgateApi");
+            this.floodgatePresent = getServer().getPluginManager().isPluginEnabled("floodgate");
+        } catch (ClassNotFoundException e) {
+            this.floodgatePresent = false;
+        }
+
+        if (this.floodgatePresent) {
+            getLogger().info("Floodgate API integration verified. Bedrock player detection enabled.");
+        } else {
+            getLogger().info("Floodgate API not found. All players will resolve as Java players.");
+        }
+
+        // Check PlaceholderAPI
+        this.placeholderApiPresent = getServer().getPluginManager().isPluginEnabled("PlaceholderAPI");
+    }
+
+    /**
+     * Checks if the given player is connected via Bedrock Edition using the Floodgate API.
+     *
+     * @param player the player to check
+     * @return true if the player is Bedrock; false if Java or cannot be verified
+     */
+    public boolean isBedrock(OfflinePlayer player) {
+        if (player == null) {
+            return false;
+        }
+        if (!floodgatePresent) {
+            return false;
+        }
+        try {
+            return org.geysermc.floodgate.api.FloodgateApi.getInstance().isFloodgatePlayer(player.getUniqueId());
+        } catch (Throwable t) {
+            if (configManager.getConfigData().isDebug()) {
+                getLogger().log(Level.WARNING, "Failed to check Bedrock status for player " + player.getName(), t);
+            }
+            return false;
+        }
+    }
+
+    public ConfigManager getConfigManager() {
+        return configManager;
+    }
+
+    public boolean isFloodgatePresent() {
+        return floodgatePresent;
+    }
+
+    public boolean isPlaceholderApiPresent() {
+        return placeholderApiPresent;
+    }
+}

@@ -1,0 +1,28 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.backup
+pom.xml.restore
+dependency-reduced-pom.xml
+build.log
+release.properties
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+.metadata/
+bin/
+
+# OS/Log Files
+Thumbs.db
+desktop.ini
+*.log

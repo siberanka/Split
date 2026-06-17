@@ -1,0 +1,15 @@
+name: Split
+version: '${project.version}'
+main: com.siberanka.split.SplitPlugin
+api-version: '1.20'
+description: Dynamic placeholder evaluation for Java & Bedrock players via Floodgate.
+author: SiberAnka
+website: https://siberanka.com
+softdepend:
+  - Floodgate
+  - PlaceholderAPI
+commands:
+  split:
+    description: Split plugin command.
+    permission: split.admin
+    usage: /split [reload]
