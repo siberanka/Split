@@ -2,6 +2,7 @@ package com.siberanka.split;
 
 import com.siberanka.split.command.SplitCommand;
 import com.siberanka.split.config.ConfigManager;
+import com.siberanka.split.documentation.DocumentationManager;
 import com.siberanka.split.placeholder.SplitPlaceholderExpansion;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -11,12 +12,16 @@ import java.util.logging.Level;
 public final class SplitPlugin extends JavaPlugin {
 
     private ConfigManager configManager;
+    private DocumentationManager documentationManager;
     private SplitPlaceholderExpansion placeholderExpansion;
     private boolean floodgatePresent;
     private boolean placeholderApiPresent;
 
     @Override
     public void onEnable() {
+        this.documentationManager = new DocumentationManager(this);
+        refreshDocumentation();
+
         // Initialize Configuration Manager
         this.configManager = new ConfigManager(this);
         try {
@@ -108,6 +113,20 @@ public final class SplitPlugin extends JavaPlugin {
 
     public ConfigManager getConfigManager() {
         return configManager;
+    }
+
+    /**
+     * Synchronizes the bundled WIKI.md without making documentation availability
+     * a prerequisite for normal plugin operation.
+     */
+    public void refreshDocumentation() {
+        try {
+            if (documentationManager.sync()) {
+                getLogger().info("WIKI.md documentation created or updated successfully.");
+            }
+        } catch (Exception exception) {
+            getLogger().log(Level.WARNING, "Could not create or refresh WIKI.md documentation.", exception);
+        }
     }
 
     public boolean isFloodgatePresent() {

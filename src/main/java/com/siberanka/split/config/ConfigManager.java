@@ -132,11 +132,14 @@ public class ConfigManager {
                                 placeholderObj = parseAdaptivePlaceholder(key, sec);
                                 break;
                             case "simple":
-                            default:
                                 String javaVal = sec.getString("java", "");
                                 String bedrockVal = sec.getString("bedrock", "");
                                 placeholderObj = new SimplePlaceholder(javaVal, bedrockVal);
                                 break;
+                            default:
+                                throw new IllegalArgumentException(
+                                        "Placeholder '" + key + "' has unknown type: " + type
+                                );
                         }
 
                         if (placeholderObj != null) {

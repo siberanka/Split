@@ -60,4 +60,19 @@ class ConfigManagerTest {
 
         assertEquals("adaptive", ConfigManager.parseAdaptivePlaceholder("flat", yaml).getType());
     }
+
+    @Test
+    void rejectsUnknownAdaptiveOutputType() throws Exception {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.loadFromString("""
+                source: "%player_name%"
+                result:
+                  type: executable
+                """);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ConfigManager.parseAdaptivePlaceholder("invalid-output", yaml)
+        );
+    }
 }

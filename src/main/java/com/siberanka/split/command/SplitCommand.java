@@ -51,6 +51,7 @@ public class SplitCommand implements CommandExecutor, TabCompleter {
             // Run config reloading asynchronously to prevent blocking the main server thread (disk I/O)
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                 try {
+                    plugin.refreshDocumentation();
                     plugin.getConfigManager().load();
                     // Load successful
                     ConfigManager.ConfigData newConfig = plugin.getConfigManager().getConfigData();

@@ -18,6 +18,7 @@ A lightweight, high-performance, and secure Minecraft plugin for Spigot/Paper se
 * **Circular Reference Protection:** Safe evaluation using `ThreadLocal` recursion detectors. Prevents admin formatting mistakes from crashing the server with `StackOverflowError`.
 * **Safe Custom Expression Parser:** Uses a built-in, lightweight, and 100% secure tokenizer. No scripting engine (like JavaScript Nashorn) is utilized, completely eliminating code-injection exploits.
 * **Robust Configuration Reloading:** In the event of a YAML formatting syntax error, the plugin logs the details and maintains the current running configurations instead of crashing.
+* **Self-Updating Local Wiki:** A detailed bilingual `plugins/Split/WIKI.md` is restored when deleted and atomically refreshed when the bundled guide changes. It is documentation only and is never read as configuration.
 
 ### Commands & Permissions
 * `/split reload` ── Reloads the plugin configuration files (`config.yml`, `messages.yml`, `placeholders.yml`).
@@ -153,6 +154,10 @@ adaptive_template:
 
 Adaptive results are returned literally and are not parsed a second time by PlaceholderAPI. This prevents a repeated symbol containing `%` from turning into an accidental placeholder chain and keeps the workload bounded. Invalid ranges, numeric values, or limits make reload fail safely while the last valid configuration remains active.
 
+#### `WIKI.md`
+
+Split creates a complete English/Turkish tutorial at `plugins/Split/WIKI.md`. The guide documents every placeholder type, setting, alias, formula, limit, command, and troubleshooting flow. It has no configuration authority: Split never reads it as settings. If deleted, edited, or outdated after an update, it is replaced with the current bundled copy on startup or `/split reload`.
+
 ---
 
 ## 🇹🇷 Türkçe Dokümantasyon
@@ -169,6 +174,7 @@ Adaptive results are returned literally and are not parsed a second time by Plac
 * **Kısır Döngü Koruması:** `ThreadLocal` tabanlı döngü algılayıcılar sayesinde yönetici hatalarından kaynaklanabilecek circular-reference (iç içe sonsuz döngü) durumlarında sunucunun `StackOverflowError` ile çökmesi veya lag oluşması engellenir.
 * **Güvenli Özel Formül Motoru:** JavaScript (`Nashorn`) gibi ağır, kullanımdan kaldırılmış ve uzaktan kod yürütme (`exploit`) riski taşıyan yapılar yerine; tamamen güvenli, yerleşik ve hafif bir metin parçalayıcı kullanılır.
 * **Güvenli Yeniden Yükleme:** Konfigürasyon dosyalarında bir YAML sözdizimi hatası olursa, plugin hatayı günlüğe kaydeder ve çalışmasını bozmadan eski kararlı yapılandırmayı bellekte tutmaya devam eder.
+* **Kendini Güncelleyen Yerel Wiki:** Ayrıntılı, iki dilli `plugins/Split/WIKI.md` silindiğinde geri oluşturulur ve paket rehberi değiştiğinde atomik biçimde yenilenir. Yalnızca dokümantasyondur; hiçbir zaman ayar olarak okunmaz.
 
 ### Komutlar ve Yetkiler
 * `/split reload` ── Eklentinin yapılandırma dosyalarını (`config.yml`, `messages.yml`, `placeholders.yml`) yeniden yükler.
@@ -303,3 +309,7 @@ adaptive_template:
 ```
 
 Adaptif sonuçlar literal olarak döndürülür ve PlaceholderAPI tarafından ikinci kez ayrıştırılmaz. Böylece `%` içeren bir simgenin yanlışlıkla yeni bir placeholder zincirine dönüşmesi engellenir ve işlem yükü sınırlı kalır. Geçersiz aralık, sayı veya limit içeren bir reload güvenli biçimde reddedilir; son geçerli yapılandırma çalışmaya devam eder.
+
+#### `WIKI.md`
+
+Split, `plugins/Split/WIKI.md` konumunda eksiksiz İngilizce/Türkçe eğitim dosyası oluşturur. Rehber tüm placeholder tiplerini, ayarları, alias'ları, formülleri, sınırları, komutları ve sorun giderme akışlarını açıklar. Hiçbir ayar geçerliliği yoktur; Split bu dosyayı yapılandırma olarak okumaz. Dosya silinirse, düzenlenirse veya plugin güncellemesinden sonra eski kalırsa açılışta ya da `/split reload` sırasında güncel paket kopyasıyla değiştirilir.

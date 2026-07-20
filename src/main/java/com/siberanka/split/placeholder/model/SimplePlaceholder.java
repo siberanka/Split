@@ -23,6 +23,9 @@ public class SimplePlaceholder extends SplitPlaceholder {
 
     @Override
     public String resolve(SplitPlugin plugin, OfflinePlayer player) {
+        if (player == null || !player.isOnline()) {
+            return plugin.getConfigManager().getConfigData().isDefaultToJavaOnNull() ? javaVal : "";
+        }
         boolean isBedrock = plugin.isBedrock(player);
         return isBedrock ? bedrockVal : javaVal;
     }
