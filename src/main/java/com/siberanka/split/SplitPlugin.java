@@ -116,16 +116,16 @@ public final class SplitPlugin extends JavaPlugin {
     }
 
     /**
-     * Synchronizes the bundled WIKI.md without making documentation availability
+     * Synchronizes the bundled wiki.yml without making documentation availability
      * a prerequisite for normal plugin operation.
      */
     public void refreshDocumentation() {
         try {
             if (documentationManager.sync()) {
-                getLogger().info("WIKI.md documentation created or updated successfully.");
+                getLogger().info("wiki.yml documentation created or updated successfully.");
             }
         } catch (Exception exception) {
-            getLogger().log(Level.WARNING, "Could not create or refresh WIKI.md documentation.", exception);
+            getLogger().log(Level.WARNING, "Could not create or refresh wiki.yml documentation.", exception);
         }
     }
 
