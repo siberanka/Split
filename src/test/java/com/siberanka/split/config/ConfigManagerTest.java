@@ -55,10 +55,16 @@ class ConfigManagerTest {
                 base-spaces: 20
                 min-spaces: 2
                 max-spaces: 20
-                output-mode: number
+                output-mode: repeat
+                value: "-"
+                template: "{count} x {value}"
                 """);
 
-        assertEquals("adaptive", ConfigManager.parseAdaptivePlaceholder("flat", yaml).getType());
+        AdaptivePlaceholder placeholder = ConfigManager.parseAdaptivePlaceholder("flat", yaml);
+        assertEquals("adaptive", placeholder.getType());
+        assertEquals(AdaptivePlaceholder.ResultType.REPEAT, placeholder.getResultType());
+        assertEquals("-", placeholder.getResultValue());
+        assertEquals("{count} x {value}", placeholder.getResultTemplate());
     }
 
     @Test
@@ -74,5 +80,20 @@ class ConfigManagerTest {
                 IllegalArgumentException.class,
                 () -> ConfigManager.parseAdaptivePlaceholder("invalid-output", yaml)
         );
+    }
+
+    @Test
+    void preservesNestedPlainTextResultValue() throws Exception {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.loadFromString("""
+                source: "%player_name%"
+                result:
+                  type: repeat
+                  value: "-"
+                """);
+
+        AdaptivePlaceholder placeholder = ConfigManager.parseAdaptivePlaceholder("dash", yaml);
+        assertEquals(AdaptivePlaceholder.ResultType.REPEAT, placeholder.getResultType());
+        assertEquals("-", placeholder.getResultValue());
     }
 }

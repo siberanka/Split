@@ -106,6 +106,18 @@ public final class AdaptivePlaceholder extends SplitPlaceholder {
         return false;
     }
 
+    public ResultType getResultType() {
+        return resultType;
+    }
+
+    public String getResultValue() {
+        return resultValue;
+    }
+
+    public String getResultTemplate() {
+        return resultTemplate;
+    }
+
     private String renderTemplate(String resolvedSource, int sourceLength, int count) {
         String rendered = resultTemplate
                 .replace("{count}", Integer.toString(count))

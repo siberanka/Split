@@ -25,6 +25,8 @@ class AdaptivePlaceholderTest {
     @Test
     void repeatsSpacesOrCustomSymbols() {
         assertEquals("     ", placeholder(AdaptivePlaceholder.ResultType.REPEAT, " ", "", 32).resolve(null, null));
+        assertEquals("-----", placeholder(AdaptivePlaceholder.ResultType.REPEAT, "-", "", 32).resolve(null, null));
+        assertEquals("abcabcabcabcabc", placeholder(AdaptivePlaceholder.ResultType.REPEAT, "abc", "", 32).resolve(null, null));
         assertEquals("•••••", placeholder(AdaptivePlaceholder.ResultType.REPEAT, "•", "", 32).resolve(null, null));
         assertEquals("%x%%x%", placeholder(AdaptivePlaceholder.ResultType.REPEAT, "%x%", "", 6).resolve(null, null));
     }

@@ -124,6 +124,8 @@ result  = rounded and clamped to [minimum, maximum]
 | `result.template` | Template supporting `{count}`, `{length}`, `{source}`, and `{value}`. |
 | `result.max-length` | Final output safety limit; range `1..16384` Unicode characters. |
 
+`result.value` is the recommended nested form. For compatibility, top-level `value`, `output-value`, and `space-character` are also accepted. Normal text never needs a Unicode escape: `value: "-"` returns hyphens, while `value: "ABC"` repeats the complete `ABC` text.
+
 Output examples:
 
 ```yaml
@@ -279,6 +281,8 @@ sonuç   = yuvarlanır ve [minimum, maximum] aralığına sınırlandırılır
 | `result.value` | `repeat` modunda tekrarlanan literal değer; boşluk, sembol, emoji veya çok karakterli metin olabilir. |
 | `result.template` | `{count}`, `{length}`, `{source}` ve `{value}` alanlarını destekleyen özel çıktı şablonu. |
 | `result.max-length` | Nihai çıktı güvenlik sınırı; `1..16384` Unicode karakteri. |
+
+Önerilen kullanım `result.value` biçimidir. Uyumluluk için üst seviyede `value`, `output-value` ve `space-character` da kabul edilir. Normal metin Unicode kaçışına ihtiyaç duymaz: `value: "-"` tire, `value: "ABC"` ise `ABC` metninin tamamını tekrarlar.
 
 Farklı çıktı örnekleri:
 

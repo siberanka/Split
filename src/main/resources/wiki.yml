@@ -408,11 +408,14 @@
 # | `source-options.count-whitespace` | `count-whitespace` |
 # | `source-options.max-characters` | `max-source-characters` |
 # | `result.type` | `output-mode` |
-# | `result.value` | `output-value`, `space-character` |
-# | `result.template` | `output-template` |
+# | `result.value` | `value`, `output-value`, `space-character` |
+# | `result.template` | `template`, `output-template` |
 # | `result.max-length` | `max-output-length` |
 #
 # When both canonical and flat keys are present, the canonical nested key wins.
+# Normal text does not require Unicode escaping. For example, top-level
+# `value: "-"` repeats hyphens and `value: "ABC"` repeats the complete ABC unit.
+# The recommended nested spelling remains `result.value`.
 #
 # ### Output examples
 #
@@ -904,11 +907,14 @@
 # | `source-options.count-whitespace` | `count-whitespace` |
 # | `source-options.max-characters` | `max-source-characters` |
 # | `result.type` | `output-mode` |
-# | `result.value` | `output-value`, `space-character` |
-# | `result.template` | `output-template` |
+# | `result.value` | `value`, `output-value`, `space-character` |
+# | `result.template` | `template`, `output-template` |
 # | `result.max-length` | `max-output-length` |
 #
 # Hem standart hem düz anahtar yazılırsa standart iç içe anahtar önceliklidir.
+# Normal metin için Unicode kaçışı gerekmez. Örneğin üst seviyedeki `value: "-"`
+# tireleri, `value: "ABC"` ise ABC biriminin tamamını tekrarlar. Önerilen iç içe
+# yazım yine `result.value` biçimidir.
 #
 # ### Çıktı örnekleri
 #

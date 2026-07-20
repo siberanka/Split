@@ -210,8 +210,21 @@ public class ConfigManager {
         AdaptivePlaceholder.ResultType resultType = AdaptivePlaceholder.ResultType.parse(
                 readString(section, "repeat", "result.type", "output-mode")
         );
-        String resultValue = readString(section, " ", "result.value", "output-value", "space-character");
-        String resultTemplate = readString(section, "{count}", "result.template", "output-template");
+        String resultValue = readString(
+                section,
+                " ",
+                "result.value",
+                "value",
+                "output-value",
+                "space-character"
+        );
+        String resultTemplate = readString(
+                section,
+                "{count}",
+                "result.template",
+                "template",
+                "output-template"
+        );
         int maxOutputLength = readInteger(
                 section,
                 8_192,
