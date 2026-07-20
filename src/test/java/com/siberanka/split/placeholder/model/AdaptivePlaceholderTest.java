@@ -4,6 +4,9 @@ import com.siberanka.split.util.AdaptiveSpacingCalculator.Mode;
 import com.siberanka.split.util.AdaptiveSpacingCalculator.Rounding;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
@@ -41,6 +44,39 @@ class AdaptivePlaceholderTest {
         );
 
         assertEquals("length=0, count=5, value=•, source=''", placeholder.resolve(null, null));
+    }
+
+    @Test
+    void resolvesAndCombinesEveryConfiguredSourceThenCachesSilently() {
+        AtomicInteger resolutions = new AtomicInteger();
+        AdaptivePlaceholder placeholder = new AdaptivePlaceholder(
+                List.of("%first%", "%second%"),
+                "|",
+                250L,
+                16,
+                Mode.DIRECT,
+                1,
+                0,
+                0,
+                100,
+                Rounding.NEAREST,
+                false,
+                false,
+                true,
+                128,
+                AdaptivePlaceholder.ResultType.TEMPLATE,
+                " ",
+                "{source}:{length}:{count}",
+                128,
+                (player, source) -> {
+                    resolutions.incrementAndGet();
+                    return source.equals("%first%") ? "AA" : "BBB";
+                }
+        );
+
+        assertEquals("AA|BBB:6:6", placeholder.resolve(null, null));
+        assertEquals("AA|BBB:6:6", placeholder.resolve(null, null));
+        assertEquals(2, resolutions.get());
     }
 
     private static AdaptivePlaceholder placeholder(

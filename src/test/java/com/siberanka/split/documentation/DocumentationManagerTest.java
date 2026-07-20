@@ -82,7 +82,7 @@ class DocumentationManagerTest {
         assertTrue(content.lines().allMatch(line -> line.startsWith("#")));
         assertTrue(content.contains("ENGLISH GUIDE"));
         assertTrue(content.contains("TÜRKÇE REHBER"));
-        assertTrue(content.contains("Split 1.1.3"));
+        assertTrue(content.contains("Split 1.2.0"));
     }
 
     private static boolean sync(String content, Path destination) throws Exception {

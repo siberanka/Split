@@ -76,7 +76,9 @@ example_expression:
 # 4. Adaptive Output Type
 adaptive_spacing:
   type: "adaptive"
-  source: "%player_name%, %luckperms_prefix%"
+  source:
+    - "%vault_eco_balance_formatted%"
+    - "%superior_island_level_format%"
   calculation:
     mode: "inverse"
     ratio: 1.0
@@ -85,6 +87,9 @@ adaptive_spacing:
     maximum: 32
     rounding: "nearest"
   source-options:
+    separator: ""
+    cooldown-milliseconds: 250
+    max-cache-entries: 1024
     trim: false
     strip-color-codes: true
     count-whitespace: true
@@ -98,7 +103,9 @@ adaptive_spacing:
 
 ### Adaptive Placeholder Reference
 
-Use `%split_adaptive_spacing%` for the example above. `source` may contain plain text, spaces, punctuation, one placeholder, or multiple adjacent placeholders such as `%placeholder1%%placeholder2%`. Split resolves the complete source once and counts Unicode code points instead of UTF-16 units, so an emoji is treated as one character.
+Use `%split_adaptive_spacing%` for the example above. `source` accepts either one string (backward compatible) or a YAML list of up to 32 strings. Each list item may contain plain text, spaces, punctuation, one placeholder, or adjacent placeholders such as `%placeholder1%%placeholder2%`. List items are resolved individually in order, joined with `source-options.separator`, and counted as Unicode code points, so an emoji is one character.
+
+Adaptive results are cached separately for each player UUID and adaptive key. Every request checks freshness: after the cooldown expires, all configured sources are resolved again and the result is recalculated. Requests inside the cooldown receive the last calculated output unchanged—Split never returns a cooldown notice. Concurrent refreshes for the same player/key are combined into one calculation; the bounded cache is also cleared for a player on quit. If a source expansion temporarily fails, the last successful output (or an empty value before the first success) is served silently until the next retry window.
 
 The calculation formulas are:
 
@@ -115,6 +122,10 @@ result  = rounded and clamped to [minimum, maximum]
 | `calculation.base` | Starting value before the character adjustment. Defaults to `minimum` in direct mode and `maximum` in inverse mode. |
 | `calculation.minimum` / `maximum` | Inclusive result range. The hard safety ceiling is 4096. |
 | `calculation.rounding` | `floor`, `ceiling`, or `nearest`. |
+| `source` | One string or an ordered YAML list of `1..32` strings; total configured limit `8192` Unicode characters. |
+| `source-options.separator` | Literal text inserted between resolved list items; default empty text, maximum 128 characters. It is included in the measured source. |
+| `source-options.cooldown-milliseconds` | Per-player refresh interval, `100..60000`; default `250`. Cached output is returned normally during the interval. |
+| `source-options.max-cache-entries` | Per-adaptive-placeholder UUID cache bound, `1..4096`; default `1024`. |
 | `source-options.trim` | Removes leading and trailing whitespace before counting. |
 | `source-options.strip-color-codes` | Ignores `&`/`§` legacy and hex color sequences. |
 | `source-options.count-whitespace` | Includes or excludes whitespace characters from the measured length. |
@@ -234,7 +245,9 @@ example_expression:
 # 4. Adaptif Çıktı Tipi
 adaptive_spacing:
   type: "adaptive"
-  source: "%player_name%, %luckperms_prefix%"
+  source:
+    - "%vault_eco_balance_formatted%"
+    - "%superior_island_level_format%"
   calculation:
     mode: "inverse"
     ratio: 1.0
@@ -243,6 +256,9 @@ adaptive_spacing:
     maximum: 32
     rounding: "nearest"
   source-options:
+    separator: ""
+    cooldown-milliseconds: 250
+    max-cache-entries: 1024
     trim: false
     strip-color-codes: true
     count-whitespace: true
@@ -256,7 +272,9 @@ adaptive_spacing:
 
 ### Adaptif Placeholder Ayarları
 
-Yukarıdaki örnek `%split_adaptive_spacing%` olarak kullanılır. `source`; normal metin, boşluk, virgül/noktalama, tek bir placeholder veya `%placeholder1%%placeholder2%` gibi bitişik birden fazla placeholder içerebilir. Split tüm kaynağı bir kez çözümler ve UTF-16 birimleri yerine Unicode code point sayar; bu nedenle bir emoji tek karakter kabul edilir.
+Yukarıdaki örnek `%split_adaptive_spacing%` olarak kullanılır. `source`, geriye uyumlu tek metin biçimini veya en fazla 32 metinden oluşan bir YAML listesini kabul eder. Her liste öğesi normal metin, boşluk, noktalama, tek placeholder ya da `%placeholder1%%placeholder2%` gibi bitişik placeholder'lar içerebilir. Öğeler sırayla ayrı ayrı çözümlenir, `source-options.separator` ile birleştirilir ve Unicode code point olarak sayılır; bu nedenle bir emoji tek karakter kabul edilir.
+
+Adaptif sonuçlar her oyuncu UUID'si ve adaptif anahtar için ayrı tutulur. Her çağrıda tazelik kontrol edilir: cooldown dolduktan sonraki ilk çağrıda listedeki bütün kaynaklar yeniden çözümlenir ve hesap yeniden yapılır. Cooldown içindeki çağrılar son hesaplanan çıktıyı aynen alır; Split hiçbir zaman “cooldown'da” benzeri bir metin döndürmez. Aynı oyuncu/anahtar için eşzamanlı yenilemeler tek hesapta birleştirilir, sınırlı cache oyuncu çıkışında da temizlenir. Kaynak çözümleme geçici olarak hata verirse son başarılı çıktı (ilk başarıdan önce boş değer) bir sonraki deneme aralığına kadar sessizce sunulur.
 
 Hesaplama formülleri:
 
@@ -273,6 +291,10 @@ sonuç   = yuvarlanır ve [minimum, maximum] aralığına sınırlandırılır
 | `calculation.base` | Karakter hesabından önceki başlangıç değeri. Girilmezse direct modunda `minimum`, inverse modunda `maximum` kullanılır. |
 | `calculation.minimum` / `maximum` | Sonucun dahilî alt/üst sınırı. Güvenlik üst sınırı 4096'dır. |
 | `calculation.rounding` | `floor` (aşağı), `ceiling` (yukarı) veya `nearest` (en yakın). |
+| `source` | Tek metin veya sıralı `1..32` öğelik YAML listesi; toplam yapılandırılmış sınır `8192` Unicode karakteridir. |
+| `source-options.separator` | Çözümlenen liste öğeleri arasına eklenen literal metin; varsayılan boş, en fazla 128 karakterdir ve kaynak sayımına dahildir. |
+| `source-options.cooldown-milliseconds` | Oyuncu başına yenileme aralığı, `100..60000`; varsayılan `250`. Aralık içinde cache çıktısı normal biçimde döner. |
+| `source-options.max-cache-entries` | Her adaptif placeholder için UUID cache sınırı, `1..4096`; varsayılan `1024`. |
 | `source-options.trim` | Sayımdan önce baştaki ve sondaki boşlukları kaldırır. |
 | `source-options.strip-color-codes` | `&`/`§` legacy ve hex renk dizilerini sayım dışı bırakır. |
 | `source-options.count-whitespace` | Kaynaktaki boşluk karakterlerini sayıma dahil eder veya çıkarır. |

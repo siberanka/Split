@@ -11,10 +11,13 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 public class ConfigManager {
 
@@ -22,7 +25,13 @@ public class ConfigManager {
     private static final int MAX_SOURCE_CHARACTERS = 32_768;
     private static final int MAX_OUTPUT_LENGTH = 16_384;
     private static final int MAX_CONFIGURED_TEXT_LENGTH = 4_096;
+    private static final int MAX_CONFIGURED_SOURCE_TOTAL_LENGTH = 8_192;
+    private static final int MAX_SOURCE_ENTRIES = 32;
     private static final int MAX_RESULT_VALUE_LENGTH = 128;
+    private static final int MAX_SOURCE_SEPARATOR_LENGTH = 128;
+    private static final int MIN_COOLDOWN_MILLISECONDS = 100;
+    private static final int MAX_COOLDOWN_MILLISECONDS = 60_000;
+    private static final int MAX_CACHE_ENTRIES = 4_096;
 
     private final SplitPlugin plugin;
     private volatile ConfigData configData;
@@ -156,8 +165,26 @@ public class ConfigManager {
 
     static AdaptivePlaceholder parseAdaptivePlaceholder(String key, ConfigurationSection section) {
         String context = "Adaptive placeholder '" + key + "'";
-        String source = readString(section, "", "source");
-        validateConfiguredText(context + " source", source, MAX_CONFIGURED_TEXT_LENGTH, false);
+        List<String> sources = readStringList(section, "source");
+        if (sources.isEmpty() || sources.size() > MAX_SOURCE_ENTRIES) {
+            throw new IllegalArgumentException(context + " source must contain between 1 and "
+                    + MAX_SOURCE_ENTRIES + " entries");
+        }
+        int configuredSourceLength = 0;
+        for (int index = 0; index < sources.size(); index++) {
+            String source = sources.get(index);
+            validateConfiguredText(
+                    context + " source[" + index + "]",
+                    source,
+                    MAX_CONFIGURED_TEXT_LENGTH,
+                    false
+            );
+            configuredSourceLength += source.codePointCount(0, source.length());
+            if (configuredSourceLength > MAX_CONFIGURED_SOURCE_TOTAL_LENGTH) {
+                throw new IllegalArgumentException(context + " combined source exceeds "
+                        + MAX_CONFIGURED_SOURCE_TOTAL_LENGTH + " characters");
+            }
+        }
 
         AdaptiveSpacingCalculator.Mode mode = AdaptiveSpacingCalculator.Mode.parse(
                 readString(section, "direct", "calculation.mode", "mode")
@@ -206,6 +233,43 @@ public class ConfigManager {
             throw new IllegalArgumentException(context + " source character limit must be between 1 and "
                     + MAX_SOURCE_CHARACTERS);
         }
+        String sourceSeparator = readString(
+                section,
+                "",
+                "source-options.separator",
+                "source-separator",
+                "separator"
+        );
+        validateConfiguredText(
+                context + " source separator",
+                sourceSeparator,
+                MAX_SOURCE_SEPARATOR_LENGTH,
+                true
+        );
+        int cooldownMilliseconds = readInteger(
+                section,
+                250,
+                "source-options.cooldown-milliseconds",
+                "cooldown-milliseconds",
+                "cooldown-ms",
+                "cooldown"
+        );
+        if (cooldownMilliseconds < MIN_COOLDOWN_MILLISECONDS
+                || cooldownMilliseconds > MAX_COOLDOWN_MILLISECONDS) {
+            throw new IllegalArgumentException(context + " cooldown must be between "
+                    + MIN_COOLDOWN_MILLISECONDS + " and " + MAX_COOLDOWN_MILLISECONDS + " milliseconds");
+        }
+        int maxCacheEntries = readInteger(
+                section,
+                1_024,
+                "source-options.max-cache-entries",
+                "max-cache-entries",
+                "cache-size"
+        );
+        if (maxCacheEntries < 1 || maxCacheEntries > MAX_CACHE_ENTRIES) {
+            throw new IllegalArgumentException(context + " max cache entries must be between 1 and "
+                    + MAX_CACHE_ENTRIES);
+        }
 
         AdaptivePlaceholder.ResultType resultType = AdaptivePlaceholder.ResultType.parse(
                 readString(section, "repeat", "result.type", "output-mode")
@@ -239,7 +303,10 @@ public class ConfigManager {
         }
 
         return new AdaptivePlaceholder(
-                source,
+                sources,
+                sourceSeparator,
+                cooldownMilliseconds,
+                maxCacheEntries,
                 mode,
                 ratio,
                 base,
@@ -255,6 +322,29 @@ public class ConfigManager {
                 resultTemplate,
                 maxOutputLength
         );
+    }
+
+    private static List<String> readStringList(ConfigurationSection section, String path) {
+        if (!section.contains(path)) {
+            return Collections.emptyList();
+        }
+        Object value = section.get(path);
+        if (value instanceof String text) {
+            return List.of(text);
+        }
+        if (!(value instanceof List<?> values)) {
+            throw new IllegalArgumentException("Expected text or a text list at '" + path + "'");
+        }
+
+        List<String> result = new ArrayList<>(values.size());
+        for (int index = 0; index < values.size(); index++) {
+            Object entry = values.get(index);
+            if (!(entry instanceof String text)) {
+                throw new IllegalArgumentException("Expected text at '" + path + "[" + index + "]'");
+            }
+            result.add(text);
+        }
+        return List.copyOf(result);
     }
 
     private static void validateConfiguredText(String field, String value, int maximumCodePoints, boolean allowEmpty) {
@@ -402,6 +492,14 @@ public class ConfigManager {
 
         public Map<String, SplitPlaceholder> getPlaceholders() {
             return placeholders;
+        }
+
+        public void invalidatePlayer(UUID playerId) {
+            for (SplitPlaceholder placeholder : placeholders.values()) {
+                if (placeholder instanceof AdaptivePlaceholder adaptivePlaceholder) {
+                    adaptivePlaceholder.invalidatePlayer(playerId);
+                }
+            }
         }
     }
 }

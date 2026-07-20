@@ -106,9 +106,13 @@ example_expression:
 
 # %split_adaptive_spacing%
 # A 32-space area shrinks by one space for every resolved source character.
+# Each list entry is refreshed after the per-player cooldown; requests inside the
+# cooldown receive the last calculated value normally, without a status message.
 adaptive_spacing:
   type: "adaptive"
-  source: "%player_name%, %luckperms_prefix%"
+  source:
+    - "%vault_eco_balance_formatted%"
+    - "%superior_island_level_format%"
   calculation:
     mode: "inverse"       # direct | inverse
     ratio: 1.0
@@ -117,6 +121,9 @@ adaptive_spacing:
     maximum: 32
     rounding: "nearest"   # floor | ceiling | nearest
   source-options:
+    separator: ""                 # Literal text counted between list entries
+    cooldown-milliseconds: 250    # Range: 100..60000; default: 250
+    max-cache-entries: 1024       # UUID entries, per adaptive key; max: 4096
     trim: false
     strip-color-codes: true
     count-whitespace: true

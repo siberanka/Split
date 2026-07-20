@@ -3,6 +3,7 @@ package com.siberanka.split;
 import com.siberanka.split.command.SplitCommand;
 import com.siberanka.split.config.ConfigManager;
 import com.siberanka.split.documentation.DocumentationManager;
+import com.siberanka.split.listener.PlayerCacheListener;
 import com.siberanka.split.placeholder.SplitPlaceholderExpansion;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -33,6 +34,9 @@ public final class SplitPlugin extends JavaPlugin {
 
         // Check for integrations
         checkIntegrations();
+
+        // Remove per-player adaptive cache entries immediately when sessions end.
+        getServer().getPluginManager().registerEvents(new PlayerCacheListener(this), this);
 
         // Register Command
         SplitCommand commandExecutor = new SplitCommand(this);

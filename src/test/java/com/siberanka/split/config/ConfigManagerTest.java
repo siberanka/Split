@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -95,5 +96,44 @@ class ConfigManagerTest {
         AdaptivePlaceholder placeholder = ConfigManager.parseAdaptivePlaceholder("dash", yaml);
         assertEquals(AdaptivePlaceholder.ResultType.REPEAT, placeholder.getResultType());
         assertEquals("-", placeholder.getResultValue());
+    }
+
+    @Test
+    void parsesMultipleAdaptiveSourcesAndCooldownSettings() throws Exception {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.loadFromString("""
+                source:
+                  - "%vault_eco_balance_formatted%"
+                  - "%superior_island_level_format%"
+                source-options:
+                  separator: " | "
+                  cooldown-milliseconds: 300
+                  max-cache-entries: 64
+                result:
+                  type: number
+                """);
+
+        AdaptivePlaceholder placeholder = ConfigManager.parseAdaptivePlaceholder("multiple", yaml);
+        assertEquals(List.of(
+                "%vault_eco_balance_formatted%",
+                "%superior_island_level_format%"
+        ), placeholder.getSources());
+        assertEquals(" | ", placeholder.getSourceSeparator());
+        assertEquals(300L, placeholder.getCooldownMilliseconds());
+    }
+
+    @Test
+    void rejectsCooldownBelowSafeMinimum() throws Exception {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.loadFromString("""
+                source: "%player_name%"
+                source-options:
+                  cooldown-milliseconds: 10
+                """);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ConfigManager.parseAdaptivePlaceholder("unsafe-cooldown", yaml)
+        );
     }
 }

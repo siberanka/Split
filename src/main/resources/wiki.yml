@@ -33,7 +33,7 @@
 # 3. `expression` — evaluates a safe boolean or relational formula.
 # 4. `adaptive` — measures resolved text and produces a calculated number, repeated output, or formatted template.
 #
-# Placeholder keys and type names are case-insensitive. Returned text from `simple`, `switch`, and `expression` may contain other PlaceholderAPI placeholders. Split resolves those nested placeholders before returning the final value. Adaptive sources are resolved once, but adaptive results are deliberately returned literally for safety.
+# Placeholder keys and type names are case-insensitive. Returned text from `simple`, `switch`, and `expression` may contain other PlaceholderAPI placeholders. Split resolves those nested placeholders before returning the final value. Adaptive sources are refreshed after their configured cooldown, but adaptive results are deliberately returned literally for safety.
 #
 # ## 2. Requirements and Installation
 #
@@ -236,20 +236,19 @@
 #
 # ## 11. `adaptive` Placeholder — Complete Tutorial
 #
-# Adaptive placeholders solve layout and measurement tasks. A source such as `%player_name%`, `%placeholder1%%placeholder2%`, or `Name: %player_name%, Rank: %vault_rank%` is resolved first. Split counts the resulting Unicode characters and converts that length into a bounded result.
+# Adaptive placeholders solve layout and measurement tasks. `source` can be one string or an ordered YAML list. Each entry may contain `%player_name%`, `%placeholder1%%placeholder2%`, or plain text such as `Name: `. Split resolves every entry, joins them, counts the resulting Unicode characters, and converts that length into a bounded result.
 #
 # ### Processing order
 #
-# 1. Resolve the complete `source` once with PlaceholderAPI.
-# 2. Limit the inspected source length.
-# 3. Optionally remove color codes.
-# 4. Optionally trim leading/trailing whitespace.
-# 5. Count or ignore whitespace.
-# 6. Count Unicode code points. An emoji counts as one character.
-# 7. Apply the direct or inverse formula.
-# 8. Round and clamp the value to the configured minimum/maximum.
-# 9. Render the value as repeated text, a number, or a template.
-# 10. Return the result literally without a second PlaceholderAPI parse.
+# 1. Check the per-player/per-adaptive-key cache on every call.
+# 2. During cooldown, return the last calculated output unchanged and without a status message.
+# 3. After cooldown, resolve every configured `source` entry once with PlaceholderAPI.
+# 4. Join resolved entries with `source-options.separator` and limit the source length.
+# 5. Optionally remove color codes and trim leading/trailing whitespace.
+# 6. Count or ignore whitespace, then count Unicode code points. An emoji counts as one character.
+# 7. Apply the direct or inverse formula, round, and clamp to minimum/maximum.
+# 8. Render the value as repeated text, a number, or a template.
+# 9. Cache and return the literal result without a second PlaceholderAPI parse.
 #
 # ### Formulas
 #
@@ -264,7 +263,9 @@
 # ```yaml
 # adaptive_spacing:
 #   type: "adaptive"
-#   source: "%player_name%, %luckperms_prefix%"
+#   source:
+#     - "%vault_eco_balance_formatted%"
+#     - "%superior_island_level_format%"
 #   calculation:
 #     mode: "inverse"
 #     ratio: 1.0
@@ -273,6 +274,9 @@
 #     maximum: 32
 #     rounding: "nearest"
 #   source-options:
+#     separator: ""
+#     cooldown-milliseconds: 250
+#     max-cache-entries: 1024
 #     trim: false
 #     strip-color-codes: true
 #     count-whitespace: true
@@ -328,9 +332,30 @@
 #
 # #### `source`
 #
-# - Required text.
-# - May include plain characters, punctuation, whitespace, one PlaceholderAPI placeholder, or multiple placeholders.
-# - Configured source length limit: 4096 Unicode code points.
+# - Required; accepts one string or an ordered YAML list containing `1..32` strings.
+# - Each item may include plain characters, punctuation, whitespace, one PlaceholderAPI placeholder, or multiple placeholders.
+# - Each item is resolved separately on refresh. Item order is preserved.
+# - Each configured item is limited to 4096 Unicode code points; their combined configured limit is 8192.
+#
+# #### `source-options.separator`
+#
+# - Literal text inserted between resolved list entries and included in source measurement.
+# - Default: empty text (`""`). Maximum: 128 Unicode code points.
+#
+# #### `source-options.cooldown-milliseconds`
+#
+# - Per-player/per-adaptive-key source refresh interval.
+# - Every request checks freshness. The first request after expiry resolves every source and recalculates the result.
+# - Requests during cooldown receive the cached output unchanged; no cooldown/status string is ever returned.
+# - Concurrent refreshes for the same player and key are combined into one calculation.
+# - Allowed range: `100..60000`. Default: `250` milliseconds.
+#
+# #### `source-options.max-cache-entries`
+#
+# - Maximum cached player UUID entries for this adaptive placeholder.
+# - Entries are removed when a player quits; the cache is also discarded on configuration reload.
+# - Allowed range: `1..4096`. Default: `1024`.
+# - If a refresh fails, the last successful output—or empty output before the first success—is cached until the next retry interval.
 #
 # #### `source-options.trim`
 #
@@ -403,6 +428,9 @@
 # | `calculation.minimum` | `minimum`, `min-spaces`, `min` |
 # | `calculation.maximum` | `maximum`, `max-spaces`, `max` |
 # | `calculation.rounding` | `rounding` |
+# | `source-options.separator` | `source-separator`, `separator` |
+# | `source-options.cooldown-milliseconds` | `cooldown-milliseconds`, `cooldown-ms`, `cooldown` |
+# | `source-options.max-cache-entries` | `max-cache-entries`, `cache-size` |
 # | `source-options.trim` | `trim-source` |
 # | `source-options.strip-color-codes` | `strip-color-codes`, `ignore-color-codes` |
 # | `source-options.count-whitespace` | `count-whitespace` |
@@ -464,7 +492,7 @@
 #
 # ### Why adaptive results are literal
 #
-# An adaptive source is parsed once. Its rendered result is not passed through PlaceholderAPI again. This means a repeated value such as `%`, `%player_name%`, or another percent-containing symbol remains literal. It prevents accidental recursive expansion and workload multiplication. Use `{source}` in template mode when the already-resolved source should appear in the output.
+# Each adaptive source entry is parsed once per refresh. Its rendered result is not passed through PlaceholderAPI again. This means a repeated value such as `%`, `%player_name%`, or another percent-containing symbol remains literal. It prevents accidental recursive expansion and workload multiplication. Use `{source}` in template mode when the already-resolved, joined source should appear in the output.
 #
 # ## 12. Nested Placeholders and Safety Behavior
 #
@@ -474,7 +502,7 @@
 # - Split placeholder parameters longer than 128 UTF-16 units are rejected.
 # - Runtime resolution errors fail closed to an empty value; detailed stack traces are logged only when debug mode is enabled.
 # - Configuration reload uses an atomic in-memory swap. Requests see either the complete previous configuration or the complete new configuration.
-# - Adaptive limits bound counting and generated output.
+# - Adaptive limits bound source entries, cache size, counting, and generated output.
 #
 # ## 13. Troubleshooting
 #
@@ -532,7 +560,7 @@
 # 3. `expression` — güvenli bir mantıksal/karşılaştırmalı formül hesaplar.
 # 4. `adaptive` — çözümlenmiş metni ölçerek sayı, tekrarlanan çıktı veya özel şablon üretir.
 #
-# Placeholder anahtarları ve tip adları büyük/küçük harfe duyarsızdır. `simple`, `switch` ve `expression` sonuçları başka PlaceholderAPI placeholder'ları içerebilir; Split bunları nihai sonuçtan önce çözümler. Adaptive kaynak bir kez çözümlenir, adaptive sonuç ise güvenlik nedeniyle literal döndürülür.
+# Placeholder anahtarları ve tip adları büyük/küçük harfe duyarsızdır. `simple`, `switch` ve `expression` sonuçları başka PlaceholderAPI placeholder'ları içerebilir; Split bunları nihai sonuçtan önce çözümler. Adaptive kaynaklar ayarlanan cooldown dolunca yenilenir, adaptive sonuç ise güvenlik nedeniyle literal döndürülür.
 #
 # ## 2. Gereksinimler ve Kurulum
 #
@@ -735,20 +763,19 @@
 #
 # ## 11. `adaptive` Placeholder — Tam Eğitim
 #
-# Adaptive placeholder'lar yerleşim ve ölçüm işleri içindir. `%player_name%`, `%placeholder1%%placeholder2%` veya `Ad: %player_name%, Rütbe: %vault_rank%` benzeri kaynak önce çözümlenir. Split oluşan Unicode karakter sayısını ölçer ve bu uzunluğu sınırlanmış bir sonuca dönüştürür.
+# Adaptive placeholder'lar yerleşim ve ölçüm işleri içindir. `source` tek metin veya sıralı YAML listesi olabilir. Her öğede `%player_name%`, `%placeholder1%%placeholder2%` ya da `Ad: ` gibi düz metin bulunabilir. Split bütün öğeleri çözümler, birleştirir, oluşan Unicode karakterlerini sayar ve uzunluğu sınırlanmış bir sonuca dönüştürür.
 #
 # ### İşlem sırası
 #
-# 1. `source` değerinin tamamını PlaceholderAPI ile bir kez çözümle.
-# 2. İncelenecek kaynak uzunluğunu sınırla.
-# 3. İstenirse renk kodlarını kaldır.
-# 4. İstenirse baştaki/sondaki boşlukları temizle.
-# 5. Boşlukları say veya yok say.
-# 6. Unicode code point say. Bir emoji tek karakterdir.
-# 7. Doğrudan veya ters formülü uygula.
-# 8. Sonucu yuvarla ve minimum/maximum aralığına sınırla.
-# 9. Değeri tekrar, sayı veya şablon biçiminde üret.
-# 10. İkinci bir PlaceholderAPI ayrıştırması yapmadan literal olarak döndür.
+# 1. Her çağrıda oyuncu/adaptive-anahtar cache'inin tazeliğini kontrol et.
+# 2. Cooldown içindeyse son hesaplanan çıktıyı değiştirmeden ve durum mesajı eklemeden döndür.
+# 3. Cooldown dolduysa yapılandırılmış her `source` öğesini PlaceholderAPI ile bir kez çözümle.
+# 4. Çözümlenen öğeleri `source-options.separator` ile birleştir ve kaynak uzunluğunu sınırla.
+# 5. İstenirse renk kodlarını kaldır ve baştaki/sondaki boşlukları temizle.
+# 6. Boşlukları say veya yok say, ardından Unicode code point say. Bir emoji tek karakterdir.
+# 7. Doğrudan/ters formülü uygula, yuvarla ve minimum/maximum aralığına sınırla.
+# 8. Değeri tekrar, sayı veya şablon biçiminde üret.
+# 9. Literal sonucu cache'e al ve ikinci PlaceholderAPI ayrıştırması yapmadan döndür.
 #
 # ### Formüller
 #
@@ -763,7 +790,9 @@
 # ```yaml
 # adaptive_bosluk:
 #   type: "adaptive"
-#   source: "%player_name%, %luckperms_prefix%"
+#   source:
+#     - "%vault_eco_balance_formatted%"
+#     - "%superior_island_level_format%"
 #   calculation:
 #     mode: "inverse"
 #     ratio: 1.0
@@ -772,6 +801,9 @@
 #     maximum: 32
 #     rounding: "nearest"
 #   source-options:
+#     separator: ""
+#     cooldown-milliseconds: 250
+#     max-cache-entries: 1024
 #     trim: false
 #     strip-color-codes: true
 #     count-whitespace: true
@@ -827,9 +859,30 @@
 #
 # #### `source`
 #
-# - Zorunlu metindir.
-# - Normal karakter, noktalama, boşluk, tek PlaceholderAPI placeholder'ı veya birden fazla placeholder içerebilir.
-# - Yapılandırılmış kaynak sınırı: 4096 Unicode code point.
+# - Zorunludur; tek metin veya `1..32` metin içeren sıralı YAML listesi kabul eder.
+# - Her öğe normal karakter, noktalama, boşluk, tek PlaceholderAPI placeholder'ı veya birden fazla placeholder içerebilir.
+# - Yenilemede her öğe ayrı ayrı çözümlenir; liste sırası korunur.
+# - Her yapılandırılmış öğenin sınırı 4096 Unicode code point, tüm öğelerin toplam sınırı 8192'dir.
+#
+# #### `source-options.separator`
+#
+# - Çözümlenmiş liste öğelerinin arasına eklenen ve kaynak ölçümüne dahil edilen literal metindir.
+# - Varsayılan: boş metin (`""`). Üst sınır: 128 Unicode code point.
+#
+# #### `source-options.cooldown-milliseconds`
+#
+# - Oyuncu ve adaptive anahtar başına kaynak yenileme aralığıdır.
+# - Her çağrıda tazelik kontrol edilir; süre dolduktan sonraki ilk çağrı bütün kaynakları yeniden çözümler ve sonucu hesaplar.
+# - Cooldown içindeki çağrılar cache çıktısını aynen alır; hiçbir cooldown/durum metni döndürülmez.
+# - Aynı oyuncu ve anahtar için eşzamanlı yenilemeler tek hesapta birleştirilir.
+# - İzin verilen aralık: `100..60000`. Varsayılan: `250` milisaniye.
+#
+# #### `source-options.max-cache-entries`
+#
+# - Bu adaptive placeholder için tutulacak oyuncu UUID girdilerinin üst sınırıdır.
+# - Oyuncu çıkınca girdisi silinir; yapılandırma reload'unda cache'in tamamı da bırakılır.
+# - İzin verilen aralık: `1..4096`. Varsayılan: `1024`.
+# - Yenileme hata verirse son başarılı çıktı—ilk başarıdan önce boş çıktı—sonraki deneme aralığına kadar cache'e alınır.
 #
 # #### `source-options.trim`
 #
@@ -902,6 +955,9 @@
 # | `calculation.minimum` | `minimum`, `min-spaces`, `min` |
 # | `calculation.maximum` | `maximum`, `max-spaces`, `max` |
 # | `calculation.rounding` | `rounding` |
+# | `source-options.separator` | `source-separator`, `separator` |
+# | `source-options.cooldown-milliseconds` | `cooldown-milliseconds`, `cooldown-ms`, `cooldown` |
+# | `source-options.max-cache-entries` | `max-cache-entries`, `cache-size` |
 # | `source-options.trim` | `trim-source` |
 # | `source-options.strip-color-codes` | `strip-color-codes`, `ignore-color-codes` |
 # | `source-options.count-whitespace` | `count-whitespace` |
@@ -963,7 +1019,7 @@
 #
 # ### Adaptive sonuçlar neden literaldir?
 #
-# Adaptive kaynak bir kez ayrıştırılır. Üretilen sonuç tekrar PlaceholderAPI'ye verilmez. Bu nedenle `%`, `%player_name%` veya yüzde içeren başka bir değer tekrarlandığında literal kalır. Yanlışlıkla recursive expansion ve işlem yükü katlanması engellenir. Çözülmüş kaynak sonuçta gösterilecekse template modundaki `{source}` kullanılmalıdır.
+# Her adaptive kaynak öğesi yenileme başına bir kez ayrıştırılır. Üretilen sonuç tekrar PlaceholderAPI'ye verilmez. Bu nedenle `%`, `%player_name%` veya yüzde içeren başka bir değer tekrarlandığında literal kalır. Yanlışlıkla recursive expansion ve işlem yükü katlanması engellenir. Çözülmüş ve birleştirilmiş kaynak sonuçta gösterilecekse template modundaki `{source}` kullanılmalıdır.
 #
 # ## 12. İç İçe Placeholder ve Güvenlik Davranışı
 #
@@ -973,7 +1029,7 @@
 # - 128 UTF-16 biriminden uzun Split placeholder parametreleri reddedilir.
 # - Runtime çözümleme hataları güvenli biçimde boş değere düşer; ayrıntılı stack trace yalnızca debug açıkken loglanır.
 # - Yapılandırma reload'u atomik bellek geçişi kullanır. İstekler ya önceki tam yapılandırmayı ya yeni tam yapılandırmayı görür.
-# - Adaptive sınırlar sayım ve üretilen çıktı yükünü kontrol altında tutar.
+# - Adaptive sınırlar kaynak öğelerini, cache boyutunu, sayımı ve üretilen çıktı yükünü kontrol altında tutar.
 #
 # ## 13. Sorun Giderme
 #
