@@ -11,11 +11,14 @@ import org.bukkit.command.TabCompleter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 
 public class SplitCommand implements CommandExecutor, TabCompleter {
 
     private final SplitPlugin plugin;
+    private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
 
     public SplitCommand(SplitPlugin plugin) {
         this.plugin = plugin;
@@ -38,6 +41,13 @@ public class SplitCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args[0].equalsIgnoreCase("reload")) {
+            if (!reloadInProgress.compareAndSet(false, true)) {
+                String msg = config.getMessage("reload-in-progress", "&eBir yapılandırma yenilemesi zaten devam ediyor.");
+                sender.sendMessage(ColorUtils.colorize(msg));
+                return true;
+            }
+
+            String senderName = sender.getName();
             // Run config reloading asynchronously to prevent blocking the main server thread (disk I/O)
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                 try {
@@ -45,15 +55,17 @@ public class SplitCommand implements CommandExecutor, TabCompleter {
                     // Load successful
                     ConfigManager.ConfigData newConfig = plugin.getConfigManager().getConfigData();
                     String msg = newConfig.getMessage("reload-success", "&aYapılandırma dosyaları başarıyla yenilendi.");
-                    sender.sendMessage(ColorUtils.colorize(msg));
+                    sendOnServerThread(sender, msg);
                     if (newConfig.isDebug()) {
-                        plugin.getLogger().info("Plugin configuration reloaded successfully by " + sender.getName());
+                        plugin.getLogger().info("Plugin configuration reloaded successfully by " + senderName);
                     }
                 } catch (Exception e) {
                     // Load failed
                     plugin.getLogger().log(Level.SEVERE, "An error occurred while reloading the configurations:", e);
                     String msg = config.getMessage("reload-failure", "&cYapılandırma dosyaları yenilenirken bir hata oluştu!");
-                    sender.sendMessage(ColorUtils.colorize(msg));
+                    sendOnServerThread(sender, msg);
+                } finally {
+                    reloadInProgress.set(false);
                 }
             });
             return true;
@@ -72,12 +84,19 @@ public class SplitCommand implements CommandExecutor, TabCompleter {
 
         if (args.length == 1) {
             List<String> list = new ArrayList<>();
-            if ("reload".startsWith(args[0].toLowerCase())) {
+            if ("reload".startsWith(args[0].toLowerCase(Locale.ROOT))) {
                 list.add("reload");
             }
             return list;
         }
 
         return Collections.emptyList();
+    }
+
+    private void sendOnServerThread(CommandSender sender, String message) {
+        plugin.getServer().getScheduler().runTask(
+                plugin,
+                () -> sender.sendMessage(ColorUtils.colorize(message))
+        );
     }
 }

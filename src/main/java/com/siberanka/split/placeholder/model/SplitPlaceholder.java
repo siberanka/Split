@@ -15,6 +15,14 @@ public abstract class SplitPlaceholder {
     }
 
     /**
+     * Whether the value returned by {@link #resolve(SplitPlugin, OfflinePlayer)}
+     * still contains templates that PlaceholderAPI should resolve.
+     */
+    public boolean shouldResolveNestedPlaceholders() {
+        return true;
+    }
+
+    /**
      * Resolves the raw template value based on placeholder rules and the player.
      *
      * @param plugin The Split plugin instance

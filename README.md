@@ -1,16 +1,17 @@
 # Split ── Bedrock/Java Dynamic Placeholder Plugin
 
-A lightweight, high-performance, and secure Minecraft plugin designed for Spigot/Paper servers. It interfaces with the **Floodgate API** to serve different placeholder results depending on whether the player is using **Minecraft: Java Edition** or **Minecraft: Bedrock Edition** (via Geyser), alongside advanced switch-case logic and math/logical expression evaluations.
+A lightweight, high-performance, and secure Minecraft plugin for Spigot/Paper servers. Split provides platform-aware values, switch mappings, expression evaluation, and highly configurable adaptive output based on the resolved character count of one or more PlaceholderAPI values.
 
 ---
 
 ## 🇬🇧 English Documentation
 
 ### Features
-* **Polymorphic Placeholders:** Supports `simple`, `switch`, and `expression` types for dynamic evaluation.
+* **Polymorphic Placeholders:** Supports `simple`, `switch`, `expression`, and `adaptive` types.
 * **Dual-Platform Handling (`simple`):** Serves different template values for Bedrock and Java clients.
 * **Case-Switch Mapping (`switch`):** Resolves a target placeholder and matches it against custom case keys with a fallback `default` case.
 * **Boolean Expression Evaluator (`expression`):** Evaluates mathematical/relational expressions and returns a true or false value.
+* **Adaptive Output (`adaptive`):** Counts resolved Unicode characters and returns a bounded number, repeated spaces/symbols/text, or a custom template using direct or inverse scaling.
 * **PlaceholderAPI Integration:** Registers custom `%split_<key>%` placeholders and resolves nested placeholders (e.g. `%player_name%`) in the returned values.
 * **100% Thread-Safe & Atomic:** Custom configuration loading with atomic volatile swaps. Zero locks are held during placeholder requests.
 * **Asynchronous Reloading:** Config reloads happen in a background thread, preventing server lag spikes (disk I/O) on the main thread.
@@ -41,6 +42,7 @@ no-permission: "%prefix%&cYou do not have permission to execute this command!"
 only-players: "%prefix%&cThis command can only be executed by players!"
 reload-success: "%prefix%&aConfiguration files reloaded successfully."
 reload-failure: "%prefix%&cAn error occurred while reloading the configuration files! Check console."
+reload-in-progress: "%prefix%&eA configuration reload is already in progress."
 invalid-usage: "%prefix%&cInvalid usage! &fUsage: /split reload"
 ```
 
@@ -69,17 +71,98 @@ example_expression:
   formule: "%player_ping% >> 60 && %player_ping% << 120"
   true: "Ping is stable"
   false: "Ping is not stable"
+
+# 4. Adaptive Output Type
+adaptive_spacing:
+  type: "adaptive"
+  source: "%player_name%, %luckperms_prefix%"
+  calculation:
+    mode: "inverse"
+    ratio: 1.0
+    base: 32
+    minimum: 2
+    maximum: 32
+    rounding: "nearest"
+  source-options:
+    trim: false
+    strip-color-codes: true
+    count-whitespace: true
+    max-characters: 8192
+  result:
+    type: "repeat"
+    value: " "
+    template: "{count}"
+    max-length: 8192
 ```
+
+### Adaptive Placeholder Reference
+
+Use `%split_adaptive_spacing%` for the example above. `source` may contain plain text, spaces, punctuation, one placeholder, or multiple adjacent placeholders such as `%placeholder1%%placeholder2%`. Split resolves the complete source once and counts Unicode code points instead of UTF-16 units, so an emoji is treated as one character.
+
+The calculation formulas are:
+
+```text
+direct  = base + (source length × ratio)
+inverse = base - (source length × ratio)
+result  = rounded and clamped to [minimum, maximum]
+```
+
+| Setting | Values / behavior |
+| --- | --- |
+| `calculation.mode` | `direct` increases the result; `inverse` decreases it as the source grows. |
+| `calculation.ratio` | Non-negative decimal multiplier applied per counted character. |
+| `calculation.base` | Starting value before the character adjustment. Defaults to `minimum` in direct mode and `maximum` in inverse mode. |
+| `calculation.minimum` / `maximum` | Inclusive result range. The hard safety ceiling is 4096. |
+| `calculation.rounding` | `floor`, `ceiling`, or `nearest`. |
+| `source-options.trim` | Removes leading and trailing whitespace before counting. |
+| `source-options.strip-color-codes` | Ignores `&`/`§` legacy and hex color sequences. |
+| `source-options.count-whitespace` | Includes or excludes whitespace characters from the measured length. |
+| `source-options.max-characters` | Limits source characters inspected; range `1..32768`. |
+| `result.type` | `repeat`, `number`, or `template`. |
+| `result.value` | Any literal text repeated by `repeat`; it may be a space, symbol, emoji, or multi-character sequence. |
+| `result.template` | Template supporting `{count}`, `{length}`, `{source}`, and `{value}`. |
+| `result.max-length` | Final output safety limit; range `1..16384` Unicode characters. |
+
+Output examples:
+
+```yaml
+# Return the calculated number, e.g. "17"
+adaptive_count:
+  type: "adaptive"
+  source: "%player_name%"
+  calculation: { mode: "direct", ratio: 1.5, base: 0, minimum: 0, maximum: 100 }
+  result: { type: "number" }
+
+# Repeat a custom symbol, e.g. "••••••"
+adaptive_symbol:
+  type: "adaptive"
+  source: "%player_name%"
+  calculation: { mode: "direct", ratio: 1, base: 0, minimum: 0, maximum: 32 }
+  result: { type: "repeat", value: "•", max-length: 128 }
+
+# Produce a fully formatted result, e.g. "Alex: 4 chars / 12 units"
+adaptive_template:
+  type: "adaptive"
+  source: "%player_name%"
+  calculation: { mode: "inverse", ratio: 1, base: 16, minimum: 0, maximum: 16 }
+  result:
+    type: "template"
+    value: "•"
+    template: "{source}: {length} chars / {count} units"
+```
+
+Adaptive results are returned literally and are not parsed a second time by PlaceholderAPI. This prevents a repeated symbol containing `%` from turning into an accidental placeholder chain and keeps the workload bounded. Invalid ranges, numeric values, or limits make reload fail safely while the last valid configuration remains active.
 
 ---
 
 ## 🇹🇷 Türkçe Dokümantasyon
 
 ### Özellikler
-* **Polimorfik Placeholder'lar:** Dinamik çözümleme için `simple`, `switch` ve `expression` tiplerini destekler.
+* **Polimorfik Placeholder'lar:** Dinamik çözümleme için `simple`, `switch`, `expression` ve `adaptive` tiplerini destekler.
 * **Platform Ayrımı (`simple`):** Bedrock ve Java istemcileri için farklı şablon çıktıları sağlar.
 * **Eşleşme Eşitleme (`switch`):** Belirtilen hedef placeholder değerini çözümler ve tanımlı durumlarla (case) eşleştirir; eşleşme yoksa `default` değerini döndürür.
 * **Mantıksal Karşılaştırma (`expression`):** Matematiksel/mantıksal formülleri çözümler ve sonucuna göre true veya false değerini döndürür.
+* **Adaptif Çıktı (`adaptive`):** Çözümlenmiş Unicode karakterlerini sayar; doğrudan veya ters ölçeklemeyle sınırlanmış bir sayı, gereken miktarda boşluk/sembol/metin ya da özel şablon döndürür.
 * **PlaceholderAPI Entegrasyonu:** Özel `%split_<anahtar>%` placeholder'ları tanımlayabilir ve bunların içindeki diğer placeholder'ları (örn. `%player_name%`) otomatik olarak çözümler.
 * **%100 Thread-Safe & Atomik:** Atomik geçişli ve uçucu (`volatile`) değişken yapılandırması sayesinde placeholder sorguları sırasında sunucu üzerinde sıfır kilitlenme (lock contention) oluşturur.
 * **Asenkron Yenileme:** Yapılandırma yenileme işlemleri arka planda asenkron olarak gerçekleşir. Bu sayede sunucu ana iş parçacığında (main thread) disk okuma kaynaklı FPS/TPS düşüşleri yaşanmaz.
@@ -110,6 +193,7 @@ no-permission: "%prefix%&cBu komutu kullanmak için yetkiniz yok!"
 only-players: "%prefix%&cBu komut sadece oyuncular tarafından kullanılabilir!"
 reload-success: "%prefix%&aYapılandırma dosyaları başarıyla yenilendi."
 reload-failure: "%prefix%&cYapılandırma dosyaları yenilenirken bir hata oluştu! Detaylar için konsola göz atın."
+reload-in-progress: "%prefix%&eBir yapılandırma yenilemesi zaten devam ediyor."
 invalid-usage: "%prefix%&cGeçersiz kullanım! &fKullanım: /split reload"
 ```
 
@@ -138,4 +222,84 @@ example_expression:
   formule: "%player_ping% >> 60 && %player_ping% << 120"
   true: "Ping is stable"
   false: "Ping is not stable"
+
+# 4. Adaptif Çıktı Tipi
+adaptive_spacing:
+  type: "adaptive"
+  source: "%player_name%, %luckperms_prefix%"
+  calculation:
+    mode: "inverse"
+    ratio: 1.0
+    base: 32
+    minimum: 2
+    maximum: 32
+    rounding: "nearest"
+  source-options:
+    trim: false
+    strip-color-codes: true
+    count-whitespace: true
+    max-characters: 8192
+  result:
+    type: "repeat"
+    value: " "
+    template: "{count}"
+    max-length: 8192
 ```
+
+### Adaptif Placeholder Ayarları
+
+Yukarıdaki örnek `%split_adaptive_spacing%` olarak kullanılır. `source`; normal metin, boşluk, virgül/noktalama, tek bir placeholder veya `%placeholder1%%placeholder2%` gibi bitişik birden fazla placeholder içerebilir. Split tüm kaynağı bir kez çözümler ve UTF-16 birimleri yerine Unicode code point sayar; bu nedenle bir emoji tek karakter kabul edilir.
+
+Hesaplama formülleri:
+
+```text
+direct  = base + (kaynak uzunluğu × ratio)
+inverse = base - (kaynak uzunluğu × ratio)
+sonuç   = yuvarlanır ve [minimum, maximum] aralığına sınırlandırılır
+```
+
+| Ayar | Değer / davranış |
+| --- | --- |
+| `calculation.mode` | `direct` kaynak uzadıkça sonucu artırır; `inverse` azaltır. |
+| `calculation.ratio` | Sayılan her karakter için uygulanan negatif olmayan ondalık oran. |
+| `calculation.base` | Karakter hesabından önceki başlangıç değeri. Girilmezse direct modunda `minimum`, inverse modunda `maximum` kullanılır. |
+| `calculation.minimum` / `maximum` | Sonucun dahilî alt/üst sınırı. Güvenlik üst sınırı 4096'dır. |
+| `calculation.rounding` | `floor` (aşağı), `ceiling` (yukarı) veya `nearest` (en yakın). |
+| `source-options.trim` | Sayımdan önce baştaki ve sondaki boşlukları kaldırır. |
+| `source-options.strip-color-codes` | `&`/`§` legacy ve hex renk dizilerini sayım dışı bırakır. |
+| `source-options.count-whitespace` | Kaynaktaki boşluk karakterlerini sayıma dahil eder veya çıkarır. |
+| `source-options.max-characters` | İncelenecek kaynak uzunluğunu sınırlar; aralık `1..32768`. |
+| `result.type` | `repeat`, `number` veya `template`. |
+| `result.value` | `repeat` modunda tekrarlanan literal değer; boşluk, sembol, emoji veya çok karakterli metin olabilir. |
+| `result.template` | `{count}`, `{length}`, `{source}` ve `{value}` alanlarını destekleyen özel çıktı şablonu. |
+| `result.max-length` | Nihai çıktı güvenlik sınırı; `1..16384` Unicode karakteri. |
+
+Farklı çıktı örnekleri:
+
+```yaml
+# Hesaplanan sayıyı döndürür; örneğin "17"
+adaptive_count:
+  type: "adaptive"
+  source: "%player_name%"
+  calculation: { mode: "direct", ratio: 1.5, base: 0, minimum: 0, maximum: 100 }
+  result: { type: "number" }
+
+# Belirlenen simgeyi gereken sayıda tekrarlar; örneğin "••••••"
+adaptive_symbol:
+  type: "adaptive"
+  source: "%player_name%"
+  calculation: { mode: "direct", ratio: 1, base: 0, minimum: 0, maximum: 32 }
+  result: { type: "repeat", value: "•", max-length: 128 }
+
+# Tamamen özel bir metin üretir; örneğin "Alex: 4 karakter / 12 birim"
+adaptive_template:
+  type: "adaptive"
+  source: "%player_name%"
+  calculation: { mode: "inverse", ratio: 1, base: 16, minimum: 0, maximum: 16 }
+  result:
+    type: "template"
+    value: "•"
+    template: "{source}: {length} karakter / {count} birim"
+```
+
+Adaptif sonuçlar literal olarak döndürülür ve PlaceholderAPI tarafından ikinci kez ayrıştırılmaz. Böylece `%` içeren bir simgenin yanlışlıkla yeni bir placeholder zincirine dönüşmesi engellenir ve işlem yükü sınırlı kalır. Geçersiz aralık, sayı veya limit içeren bir reload güvenli biçimde reddedilir; son geçerli yapılandırma çalışmaya devam eder.

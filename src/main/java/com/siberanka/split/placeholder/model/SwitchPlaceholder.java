@@ -5,6 +5,7 @@ import me.clip.placeholderapi.PlaceholderAPI;
 import org.bukkit.OfflinePlayer;
 
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 
 public class SwitchPlaceholder extends SplitPlaceholder {
@@ -36,7 +37,7 @@ public class SwitchPlaceholder extends SplitPlaceholder {
         if (resolvedTarget == null) {
             resolvedTarget = "";
         }
-        String targetLower = resolvedTarget.toLowerCase();
+        String targetLower = resolvedTarget.toLowerCase(Locale.ROOT);
 
         // 1. Try case-insensitive lookup
         String result = cases.get(targetLower);

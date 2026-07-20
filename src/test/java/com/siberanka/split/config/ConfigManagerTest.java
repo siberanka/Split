@@ -1,0 +1,63 @@
+package com.siberanka.split.config;
+
+import com.siberanka.split.placeholder.model.AdaptivePlaceholder;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.junit.jupiter.api.Test;
+
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+class ConfigManagerTest {
+
+    @Test
+    void parsesBundledAdaptiveExample() throws Exception {
+        InputStream stream = getClass().getResourceAsStream("/placeholders.yml");
+        assertNotNull(stream);
+
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.load(new InputStreamReader(stream, StandardCharsets.UTF_8));
+        ConfigurationSection section = yaml.getConfigurationSection("adaptive_spacing");
+        assertNotNull(section);
+
+        AdaptivePlaceholder placeholder = ConfigManager.parseAdaptivePlaceholder("adaptive_spacing", section);
+        assertEquals("adaptive", placeholder.getType());
+    }
+
+    @Test
+    void rejectsRangesAboveSafetyLimit() throws Exception {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.loadFromString("""
+                source: "%player_name%"
+                calculation:
+                  minimum: 0
+                  maximum: 4097
+                """);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ConfigManager.parseAdaptivePlaceholder("unsafe", yaml)
+        );
+    }
+
+    @Test
+    void acceptsFlatCompatibilityKeys() throws Exception {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.loadFromString("""
+                source: "%player_name%"
+                mode: inverse
+                ratio: 0.5
+                base-spaces: 20
+                min-spaces: 2
+                max-spaces: 20
+                output-mode: number
+                """);
+
+        assertEquals("adaptive", ConfigManager.parseAdaptivePlaceholder("flat", yaml).getType());
+    }
+}

@@ -4,7 +4,7 @@
 #
 # [ENGLISH WIKI]
 # This file defines dynamic placeholders resolving under %split_<key>%.
-# Three placeholder types are supported:
+# Four placeholder types are supported:
 #
 # 1. simple:
 #    Resolves different values depending on the player platform (Java or Bedrock).
@@ -36,11 +36,17 @@
 #      true: "Stable Ping"
 #      false: "Unstable Ping"
 #
+# 4. adaptive:
+#    Counts Unicode characters in a resolved source and calculates a bounded value.
+#    DIRECT: base + (length * ratio), INVERSE: base - (length * ratio).
+#    The result can repeat any text, return the number, or render a template.
+#    See the working example at the end of this file.
+#
 # ------------------------------------------------------------------------------
 #
 # [TÜRKÇE VİKİ]
 # Bu dosya %split_<anahtar>% altında çözümlenecek dinamik placeholder'ları tanımlar.
-# Üç farklı tip desteklenmektedir:
+# Dört farklı tip desteklenmektedir:
 #
 # 1. simple:
 #    Oyuncu platformuna göre (Java veya Bedrock) farklı çıktılar döndürür.
@@ -72,6 +78,12 @@
 #      true: "Stabil Ping"
 #      false: "Stabil Olmayan Ping"
 #
+# 4. adaptive:
+#    Çözümlenmiş kaynağın Unicode karakterlerini sayar ve sınırlı bir değer hesaplar.
+#    DIRECT: taban + (uzunluk * oran), INVERSE: taban - (uzunluk * oran).
+#    Sonuç; istenen metni tekrarlayabilir, sayı döndürebilir veya şablon üretebilir.
+#    Dosyanın sonundaki çalışan örneğe bakın.
+#
 # ==============================================================================
 
 example:
@@ -91,3 +103,26 @@ example_expression:
   formule: "%player_ping% >> 60 && %player_ping% << 120"
   true: "Ping is stable"
   false: "Ping is not stable"
+
+# %split_adaptive_spacing%
+# A 32-space area shrinks by one space for every resolved source character.
+adaptive_spacing:
+  type: "adaptive"
+  source: "%player_name%, %luckperms_prefix%"
+  calculation:
+    mode: "inverse"       # direct | inverse
+    ratio: 1.0
+    base: 32
+    minimum: 2
+    maximum: 32
+    rounding: "nearest"   # floor | ceiling | nearest
+  source-options:
+    trim: false
+    strip-color-codes: true
+    count-whitespace: true
+    max-characters: 8192
+  result:
+    type: "repeat"        # repeat | number | template
+    value: " "
+    template: "{count}"  # Used only when type is template
+    max-length: 8192

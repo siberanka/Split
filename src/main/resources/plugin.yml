@@ -2,7 +2,7 @@ name: Split
 version: '${project.version}'
 main: com.siberanka.split.SplitPlugin
 api-version: '1.20'
-description: Dynamic placeholder evaluation for Java & Bedrock players via Floodgate.
+description: Dynamic platform, expression, switch, and adaptive output placeholders.
 author: SiberAnka
 website: https://siberanka.com
 softdepend:

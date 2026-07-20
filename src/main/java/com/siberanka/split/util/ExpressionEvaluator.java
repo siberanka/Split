@@ -1,5 +1,6 @@
 package com.siberanka.split.util;
 
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -80,7 +81,7 @@ public class ExpressionEvaluator {
 
         if (op == null) {
             // Treat as raw boolean check
-            String val = expr.toLowerCase();
+            String val = expr.toLowerCase(Locale.ROOT);
             return val.equals("true") || val.equals("yes") || val.equals("1");
         }
 
