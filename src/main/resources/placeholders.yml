@@ -38,7 +38,9 @@
 #
 # 4. adaptive:
 #    Counts Unicode characters in a resolved source and calculates a bounded value.
-#    DIRECT: base + (length * ratio), INVERSE: base - (length * ratio).
+#    DIRECT: base + (length * ratio), REVERSE: base - (length * ratio).
+#    MAP: linearly maps source-minimum..source-maximum to minimum..maximum.
+#    Numeric/template output may be negative; repeat is empty at zero or below.
 #    The result can repeat any text, return the number, or render a template.
 #    See the working example at the end of this file.
 #
@@ -80,7 +82,9 @@
 #
 # 4. adaptive:
 #    Çözümlenmiş kaynağın Unicode karakterlerini sayar ve sınırlı bir değer hesaplar.
-#    DIRECT: taban + (uzunluk * oran), INVERSE: taban - (uzunluk * oran).
+#    DIRECT: taban + (uzunluk * oran), REVERSE: taban - (uzunluk * oran).
+#    MAP: source-minimum..source-maximum aralığını minimum..maximum aralığına eşler.
+#    Sayı/template negatif olabilir; repeat sıfır veya altında boş döner.
 #    Sonuç; istenen metni tekrarlayabilir, sayı döndürebilir veya şablon üretebilir.
 #    Dosyanın sonundaki çalışan örneğe bakın.
 #
@@ -114,7 +118,7 @@ adaptive_spacing:
     - "%vault_eco_balance_formatted%"
     - "%superior_island_level_format%"
   calculation:
-    mode: "inverse"       # direct | inverse
+    mode: "reverse"       # direct | reverse | map (inverse = reverse alias)
     ratio: 1.0
     base: 32
     minimum: 2
@@ -133,3 +137,18 @@ adaptive_spacing:
     value: " "
     template: "{count}"  # Used only when type is template
     max-length: 8192
+
+# MAP example / MAP örneği:
+# %split_adaptive_mapped_number% maps 0..20 measured characters to -100..100.
+adaptive_mapped_number:
+  type: "adaptive"
+  source: "%player_name%"
+  calculation:
+    mode: "map"
+    source-minimum: 0
+    source-maximum: 20
+    minimum: -100
+    maximum: 100
+    rounding: "nearest"
+  result:
+    type: "number"

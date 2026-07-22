@@ -22,6 +22,7 @@ import java.util.UUID;
 public class ConfigManager {
 
     private static final int MAX_ADAPTIVE_COUNT = 4_096;
+    private static final int MIN_ADAPTIVE_COUNT = -MAX_ADAPTIVE_COUNT;
     private static final int MAX_SOURCE_CHARACTERS = 32_768;
     private static final int MAX_OUTPUT_LENGTH = 16_384;
     private static final int MAX_CONFIGURED_TEXT_LENGTH = 4_096;
@@ -192,7 +193,10 @@ public class ConfigManager {
         double ratio = readDouble(section, 1.0D, "calculation.ratio", "ratio");
         int minimum = readInteger(section, 0, "calculation.minimum", "minimum", "min-spaces", "min");
         int maximum = readInteger(section, 64, "calculation.maximum", "maximum", "max-spaces", "max");
-        double defaultBase = mode == AdaptiveSpacingCalculator.Mode.DIRECT ? minimum : maximum;
+        double defaultBase = switch (mode) {
+            case REVERSE, INVERSE -> maximum;
+            case DIRECT, MAP -> minimum;
+        };
         double base = readDouble(section, defaultBase, "calculation.base", "base-spaces", "base");
         AdaptiveSpacingCalculator.Rounding rounding = AdaptiveSpacingCalculator.Rounding.parse(
                 readString(section, "nearest", "calculation.rounding", "rounding")
@@ -204,9 +208,9 @@ public class ConfigManager {
         if (!Double.isFinite(base)) {
             throw new IllegalArgumentException(context + " base must be finite");
         }
-        if (minimum < 0 || maximum < minimum || maximum > MAX_ADAPTIVE_COUNT) {
-            throw new IllegalArgumentException(context + " range must satisfy 0 <= minimum <= maximum <= "
-                    + MAX_ADAPTIVE_COUNT);
+        if (minimum < MIN_ADAPTIVE_COUNT || maximum < minimum || maximum > MAX_ADAPTIVE_COUNT) {
+            throw new IllegalArgumentException(context + " range must satisfy " + MIN_ADAPTIVE_COUNT
+                    + " <= minimum <= maximum <= " + MAX_ADAPTIVE_COUNT);
         }
 
         boolean trimSource = readBoolean(section, false, "source-options.trim", "trim-source");
@@ -232,6 +236,26 @@ public class ConfigManager {
         if (maxSourceCharacters < 1 || maxSourceCharacters > MAX_SOURCE_CHARACTERS) {
             throw new IllegalArgumentException(context + " source character limit must be between 1 and "
                     + MAX_SOURCE_CHARACTERS);
+        }
+        int mapSourceMinimum = readInteger(
+                section,
+                0,
+                "calculation.source-minimum",
+                "source-minimum",
+                "input-minimum"
+        );
+        int mapSourceMaximum = readInteger(
+                section,
+                maxSourceCharacters,
+                "calculation.source-maximum",
+                "source-maximum",
+                "input-maximum"
+        );
+        if (mapSourceMinimum < 0
+                || mapSourceMaximum <= mapSourceMinimum
+                || mapSourceMaximum > maxSourceCharacters) {
+            throw new IllegalArgumentException(context + " map source range must satisfy 0 <= source-minimum"
+                    + " < source-maximum <= source-options.max-characters");
         }
         String sourceSeparator = readString(
                 section,
@@ -313,6 +337,8 @@ public class ConfigManager {
                 minimum,
                 maximum,
                 rounding,
+                mapSourceMinimum,
+                mapSourceMaximum,
                 trimSource,
                 stripColorCodes,
                 countWhitespace,

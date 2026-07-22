@@ -35,6 +35,8 @@ public final class AdaptivePlaceholder extends SplitPlaceholder {
     private final int minimum;
     private final int maximum;
     private final Rounding rounding;
+    private final int mapSourceMinimum;
+    private final int mapSourceMaximum;
     private final boolean trimSource;
     private final boolean stripColorCodes;
     private final boolean countWhitespace;
@@ -121,6 +123,54 @@ public final class AdaptivePlaceholder extends SplitPlaceholder {
                 minimum,
                 maximum,
                 rounding,
+                0,
+                maxSourceCharacters,
+                trimSource,
+                stripColorCodes,
+                countWhitespace,
+                maxSourceCharacters,
+                resultType,
+                resultValue,
+                resultTemplate,
+                maxOutputLength
+        );
+    }
+
+    public AdaptivePlaceholder(
+            List<String> sources,
+            String sourceSeparator,
+            long cooldownMilliseconds,
+            int maxCacheEntries,
+            Mode mode,
+            double ratio,
+            double base,
+            int minimum,
+            int maximum,
+            Rounding rounding,
+            int mapSourceMinimum,
+            int mapSourceMaximum,
+            boolean trimSource,
+            boolean stripColorCodes,
+            boolean countWhitespace,
+            int maxSourceCharacters,
+            ResultType resultType,
+            String resultValue,
+            String resultTemplate,
+            int maxOutputLength
+    ) {
+        this(
+                sources,
+                sourceSeparator,
+                cooldownMilliseconds,
+                maxCacheEntries,
+                mode,
+                ratio,
+                base,
+                minimum,
+                maximum,
+                rounding,
+                mapSourceMinimum,
+                mapSourceMaximum,
                 trimSource,
                 stripColorCodes,
                 countWhitespace,
@@ -154,6 +204,54 @@ public final class AdaptivePlaceholder extends SplitPlaceholder {
             int maxOutputLength,
             BiFunction<OfflinePlayer, String, String> sourceResolver
     ) {
+        this(
+                sources,
+                sourceSeparator,
+                cooldownMilliseconds,
+                maxCacheEntries,
+                mode,
+                ratio,
+                base,
+                minimum,
+                maximum,
+                rounding,
+                0,
+                maxSourceCharacters,
+                trimSource,
+                stripColorCodes,
+                countWhitespace,
+                maxSourceCharacters,
+                resultType,
+                resultValue,
+                resultTemplate,
+                maxOutputLength,
+                sourceResolver
+        );
+    }
+
+    AdaptivePlaceholder(
+            List<String> sources,
+            String sourceSeparator,
+            long cooldownMilliseconds,
+            int maxCacheEntries,
+            Mode mode,
+            double ratio,
+            double base,
+            int minimum,
+            int maximum,
+            Rounding rounding,
+            int mapSourceMinimum,
+            int mapSourceMaximum,
+            boolean trimSource,
+            boolean stripColorCodes,
+            boolean countWhitespace,
+            int maxSourceCharacters,
+            ResultType resultType,
+            String resultValue,
+            String resultTemplate,
+            int maxOutputLength,
+            BiFunction<OfflinePlayer, String, String> sourceResolver
+    ) {
         super("adaptive");
         this.sources = List.copyOf(Objects.requireNonNull(sources, "sources"));
         this.sourceSeparator = Objects.requireNonNull(sourceSeparator, "sourceSeparator");
@@ -163,6 +261,8 @@ public final class AdaptivePlaceholder extends SplitPlaceholder {
         this.minimum = minimum;
         this.maximum = maximum;
         this.rounding = rounding;
+        this.mapSourceMinimum = mapSourceMinimum;
+        this.mapSourceMaximum = mapSourceMaximum;
         this.trimSource = trimSource;
         this.stripColorCodes = stripColorCodes;
         this.countWhitespace = countWhitespace;
@@ -206,7 +306,9 @@ public final class AdaptivePlaceholder extends SplitPlaceholder {
                 base,
                 minimum,
                 maximum,
-                rounding
+                rounding,
+                mapSourceMinimum,
+                mapSourceMaximum
         );
 
         return switch (resultType) {
@@ -291,6 +393,26 @@ public final class AdaptivePlaceholder extends SplitPlaceholder {
 
     public long getCooldownMilliseconds() {
         return cooldownMilliseconds;
+    }
+
+    public Mode getMode() {
+        return mode;
+    }
+
+    public int getMinimum() {
+        return minimum;
+    }
+
+    public int getMaximum() {
+        return maximum;
+    }
+
+    public int getMapSourceMinimum() {
+        return mapSourceMinimum;
+    }
+
+    public int getMapSourceMaximum() {
+        return mapSourceMaximum;
     }
 
     public void invalidatePlayer(UUID playerId) {

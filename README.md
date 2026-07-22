@@ -11,7 +11,7 @@ A lightweight, high-performance, and secure Minecraft plugin for Spigot, Paper, 
 * **Dual-Platform Handling (`simple`):** Serves different template values for Bedrock and Java clients.
 * **Case-Switch Mapping (`switch`):** Resolves a target placeholder and matches it against custom case keys with a fallback `default` case.
 * **Boolean Expression Evaluator (`expression`):** Evaluates mathematical/relational expressions and returns a true or false value.
-* **Adaptive Output (`adaptive`):** Counts resolved Unicode characters and returns a bounded number, repeated spaces/symbols/text, or a custom template using direct or inverse scaling.
+* **Adaptive Output (`adaptive`):** Counts resolved Unicode characters and returns a bounded number, repeated spaces/symbols/text, or a custom template using direct, reverse, or linear map scaling—including negative numeric results.
 * **PlaceholderAPI Integration:** Registers custom `%split_<key>%` placeholders and resolves nested placeholders (e.g. `%player_name%`) in the returned values.
 * **Native Folia Scheduling:** Declares Folia support and routes asynchronous I/O, console replies, and player replies through Folia's async, global-region, and entity schedulers respectively while retaining Bukkit/Paper fallback behavior.
 * **Thread-Safe & Atomic:** Configuration reloads use atomic immutable snapshots; adaptive refreshes are bounded and same-key concurrent work is coalesced.
@@ -87,7 +87,7 @@ adaptive_spacing:
     - "%vault_eco_balance_formatted%"
     - "%superior_island_level_format%"
   calculation:
-    mode: "inverse"
+    mode: "reverse"
     ratio: 1.0
     base: 32
     minimum: 2
@@ -118,16 +118,18 @@ The calculation formulas are:
 
 ```text
 direct  = base + (source length × ratio)
-inverse = base - (source length × ratio)
+reverse = base - (source length × ratio)
+map     = minimum + ((source length - source-minimum) / (source-maximum - source-minimum)) × (maximum - minimum)
 result  = rounded and clamped to [minimum, maximum]
 ```
 
 | Setting | Values / behavior |
 | --- | --- |
-| `calculation.mode` | `direct` increases the result; `inverse` decreases it as the source grows. |
-| `calculation.ratio` | Non-negative decimal multiplier applied per counted character. |
-| `calculation.base` | Starting value before the character adjustment. Defaults to `minimum` in direct mode and `maximum` in inverse mode. |
-| `calculation.minimum` / `maximum` | Inclusive result range. The hard safety ceiling is 4096. |
+| `calculation.mode` | `direct` increases, `reverse` decreases, and `map` linearly maps the configured source range to the result range. `inverse` remains a compatibility alias for `reverse`. |
+| `calculation.ratio` | Non-negative decimal multiplier used by `direct`/`reverse`; ignored by `map`. |
+| `calculation.base` | Starting value used by `direct`/`reverse`; ignored by `map`. Defaults to `minimum` in direct mode and `maximum` in reverse mode. |
+| `calculation.minimum` / `maximum` | Inclusive result range; each value may be negative. Required order is `-4096 <= minimum <= maximum <= 4096`. |
+| `calculation.source-minimum` / `source-maximum` | Input character range used only by `map`; defaults to `0` and `source-options.max-characters`. Values below/above it clamp to result minimum/maximum. |
 | `calculation.rounding` | `floor`, `ceiling`, or `nearest`. |
 | `source` | One string or an ordered YAML list of `1..32` strings; total configured limit `8192` Unicode characters. |
 | `source-options.separator` | Literal text inserted between resolved list items; default empty text, maximum 128 characters. It is included in the measured source. |
@@ -165,14 +167,27 @@ adaptive_symbol:
 adaptive_template:
   type: "adaptive"
   source: "%player_name%"
-  calculation: { mode: "inverse", ratio: 1, base: 16, minimum: 0, maximum: 16 }
+  calculation: { mode: "reverse", ratio: 1, base: 16, minimum: 0, maximum: 16 }
   result:
     type: "template"
     value: "•"
     template: "{source}: {length} chars / {count} units"
+
+# Map 0..20 source characters to a -100..100 numeric result
+adaptive_mapped_number:
+  type: "adaptive"
+  source: "%player_name%"
+  calculation:
+    mode: "map"
+    source-minimum: 0
+    source-maximum: 20
+    minimum: -100
+    maximum: 100
+    rounding: "nearest"
+  result: { type: "number" }
 ```
 
-Adaptive results are returned literally and are not parsed a second time by PlaceholderAPI. This prevents a repeated symbol containing `%` from turning into an accidental placeholder chain and keeps the workload bounded. Invalid ranges, numeric values, or limits make reload fail safely while the last valid configuration remains active.
+Adaptive results are returned literally and are not parsed a second time by PlaceholderAPI. Negative values are visible in `number` and `{count}` template output. Because text cannot be repeated a negative number of times, `repeat` returns an empty string when the calculated value is zero or negative. This prevents a repeated symbol containing `%` from turning into an accidental placeholder chain and keeps the workload bounded. Invalid ranges, numeric values, or limits make reload fail safely while the last valid configuration remains active.
 
 #### `wiki.yml`
 
@@ -187,7 +202,7 @@ Split creates a complete English/Turkish tutorial at `plugins/Split/wiki.yml`. E
 * **Platform Ayrımı (`simple`):** Bedrock ve Java istemcileri için farklı şablon çıktıları sağlar.
 * **Eşleşme Eşitleme (`switch`):** Belirtilen hedef placeholder değerini çözümler ve tanımlı durumlarla (case) eşleştirir; eşleşme yoksa `default` değerini döndürür.
 * **Mantıksal Karşılaştırma (`expression`):** Matematiksel/mantıksal formülleri çözümler ve sonucuna göre true veya false değerini döndürür.
-* **Adaptif Çıktı (`adaptive`):** Çözümlenmiş Unicode karakterlerini sayar; doğrudan veya ters ölçeklemeyle sınırlanmış bir sayı, gereken miktarda boşluk/sembol/metin ya da özel şablon döndürür.
+* **Adaptif Çıktı (`adaptive`):** Çözümlenmiş Unicode karakterlerini sayar; direct, reverse veya doğrusal map ölçeklemesiyle negatif olabilen sayı, gereken miktarda boşluk/sembol/metin ya da özel şablon döndürür.
 * **PlaceholderAPI Entegrasyonu:** Özel `%split_<anahtar>%` placeholder'ları tanımlayabilir ve bunların içindeki diğer placeholder'ları (örn. `%player_name%`) otomatik olarak çözümler.
 * **Doğal Folia Scheduler Desteği:** Folia desteğini bildirir; asenkron I/O, konsol cevapları ve oyuncu cevaplarını sırasıyla Folia async, global-region ve entity scheduler üzerinden yürütürken Bukkit/Paper geri dönüş yolunu korur.
 * **Thread-Safe & Atomik:** Yapılandırma reload'ları atomik ve değişmez snapshot kullanır; adaptif yenilemeler sınırlıdır ve aynı anahtardaki eşzamanlı işler tek hesapta birleştirilir.
@@ -263,7 +278,7 @@ adaptive_spacing:
     - "%vault_eco_balance_formatted%"
     - "%superior_island_level_format%"
   calculation:
-    mode: "inverse"
+    mode: "reverse"
     ratio: 1.0
     base: 32
     minimum: 2
@@ -294,16 +309,18 @@ Hesaplama formülleri:
 
 ```text
 direct  = base + (kaynak uzunluğu × ratio)
-inverse = base - (kaynak uzunluğu × ratio)
+reverse = base - (kaynak uzunluğu × ratio)
+map     = minimum + ((kaynak uzunluğu - source-minimum) / (source-maximum - source-minimum)) × (maximum - minimum)
 sonuç   = yuvarlanır ve [minimum, maximum] aralığına sınırlandırılır
 ```
 
 | Ayar | Değer / davranış |
 | --- | --- |
-| `calculation.mode` | `direct` kaynak uzadıkça sonucu artırır; `inverse` azaltır. |
-| `calculation.ratio` | Sayılan her karakter için uygulanan negatif olmayan ondalık oran. |
-| `calculation.base` | Karakter hesabından önceki başlangıç değeri. Girilmezse direct modunda `minimum`, inverse modunda `maximum` kullanılır. |
-| `calculation.minimum` / `maximum` | Sonucun dahilî alt/üst sınırı. Güvenlik üst sınırı 4096'dır. |
+| `calculation.mode` | `direct` artırır, `reverse` azaltır, `map` ise kaynak aralığını sonuç aralığına doğrusal eşler. `inverse`, `reverse` için geriye uyumlu alias olarak kalır. |
+| `calculation.ratio` | `direct`/`reverse` tarafından kullanılan negatif olmayan oran; `map` modunda yok sayılır. |
+| `calculation.base` | `direct`/`reverse` başlangıç değeri; `map` modunda yok sayılır. Varsayılan direct için `minimum`, reverse için `maximum` değeridir. |
+| `calculation.minimum` / `maximum` | Negatif olabilen dahilî sonuç aralığı. Sıralama `-4096 <= minimum <= maximum <= 4096` olmalıdır. |
+| `calculation.source-minimum` / `source-maximum` | Yalnızca `map` için giriş karakter aralığı; varsayılan `0` ve `source-options.max-characters`. Aralık dışı uzunluklar sonuç minimum/maximum değerine sabitlenir. |
 | `calculation.rounding` | `floor` (aşağı), `ceiling` (yukarı) veya `nearest` (en yakın). |
 | `source` | Tek metin veya sıralı `1..32` öğelik YAML listesi; toplam yapılandırılmış sınır `8192` Unicode karakteridir. |
 | `source-options.separator` | Çözümlenen liste öğeleri arasına eklenen literal metin; varsayılan boş, en fazla 128 karakterdir ve kaynak sayımına dahildir. |
@@ -341,14 +358,27 @@ adaptive_symbol:
 adaptive_template:
   type: "adaptive"
   source: "%player_name%"
-  calculation: { mode: "inverse", ratio: 1, base: 16, minimum: 0, maximum: 16 }
+  calculation: { mode: "reverse", ratio: 1, base: 16, minimum: 0, maximum: 16 }
   result:
     type: "template"
     value: "•"
     template: "{source}: {length} karakter / {count} birim"
+
+# 0..20 kaynak karakterini -100..100 sayısına eşler
+adaptive_map_sayi:
+  type: "adaptive"
+  source: "%player_name%"
+  calculation:
+    mode: "map"
+    source-minimum: 0
+    source-maximum: 20
+    minimum: -100
+    maximum: 100
+    rounding: "nearest"
+  result: { type: "number" }
 ```
 
-Adaptif sonuçlar literal olarak döndürülür ve PlaceholderAPI tarafından ikinci kez ayrıştırılmaz. Böylece `%` içeren bir simgenin yanlışlıkla yeni bir placeholder zincirine dönüşmesi engellenir ve işlem yükü sınırlı kalır. Geçersiz aralık, sayı veya limit içeren bir reload güvenli biçimde reddedilir; son geçerli yapılandırma çalışmaya devam eder.
+Adaptif sonuçlar literal olarak döndürülür ve PlaceholderAPI tarafından ikinci kez ayrıştırılmaz. Negatif değerler `number` ve template içindeki `{count}` çıktısında korunur. Metin negatif sayıda tekrar edilemeyeceği için hesap sıfır veya negatifse `repeat` boş metin döndürür. Böylece `%` içeren bir simgenin yanlışlıkla yeni bir placeholder zincirine dönüşmesi engellenir ve işlem yükü sınırlı kalır. Geçersiz aralık, sayı veya limit içeren bir reload güvenli biçimde reddedilir; son geçerli yapılandırma çalışmaya devam eder.
 
 #### `wiki.yml`
 

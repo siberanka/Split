@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
  */
 public final class AdaptiveSpacingCalculator {
 
+    private static final int MAX_CALCULATED_VALUE = 4_096;
+    private static final int MIN_CALCULATED_VALUE = -MAX_CALCULATED_VALUE;
     private static final Pattern HEX_COLOR_PATTERN = Pattern.compile(
             "(?i)(?:[&§]#[0-9a-f]{6}|[&§]x(?:[&§][0-9a-f]){6})"
     );
@@ -26,6 +28,30 @@ public final class AdaptiveSpacingCalculator {
             int maximum,
             Rounding rounding
     ) {
+        return calculate(
+                sourceLength,
+                mode,
+                ratio,
+                base,
+                minimum,
+                maximum,
+                rounding,
+                0,
+                Math.max(1, maximum)
+        );
+    }
+
+    public static int calculate(
+            int sourceLength,
+            Mode mode,
+            double ratio,
+            double base,
+            int minimum,
+            int maximum,
+            Rounding rounding,
+            int mapSourceMinimum,
+            int mapSourceMaximum
+    ) {
         if (sourceLength < 0) {
             throw new IllegalArgumentException("Source length cannot be negative");
         }
@@ -35,12 +61,26 @@ public final class AdaptiveSpacingCalculator {
         if (!Double.isFinite(base)) {
             throw new IllegalArgumentException("Base must be finite");
         }
-        if (minimum < 0 || maximum < minimum) {
+        if (minimum < MIN_CALCULATED_VALUE
+                || maximum < minimum
+                || maximum > MAX_CALCULATED_VALUE) {
             throw new IllegalArgumentException("Invalid minimum/maximum range");
         }
+        if (mapSourceMinimum < 0 || mapSourceMaximum <= mapSourceMinimum) {
+            throw new IllegalArgumentException("Invalid map source range");
+        }
 
-        double delta = sourceLength * ratio;
-        double raw = mode == Mode.DIRECT ? base + delta : base - delta;
+        double raw = switch (mode) {
+            case DIRECT -> base + (sourceLength * ratio);
+            case REVERSE, INVERSE -> base - (sourceLength * ratio);
+            case MAP -> mapLinearly(
+                    sourceLength,
+                    mapSourceMinimum,
+                    mapSourceMaximum,
+                    minimum,
+                    maximum
+            );
+        };
         double bounded = Math.max(minimum, Math.min(maximum, raw));
 
         long rounded = switch (rounding) {
@@ -49,6 +89,17 @@ public final class AdaptiveSpacingCalculator {
             case NEAREST -> Math.round(bounded);
         };
         return (int) Math.max(minimum, Math.min(maximum, rounded));
+    }
+
+    private static double mapLinearly(
+            int sourceLength,
+            int sourceMinimum,
+            int sourceMaximum,
+            int resultMinimum,
+            int resultMaximum
+    ) {
+        double progress = (double) (sourceLength - sourceMinimum) / (sourceMaximum - sourceMinimum);
+        return resultMinimum + (progress * (resultMaximum - resultMinimum));
     }
 
     public static int countCharacters(
@@ -95,6 +146,9 @@ public final class AdaptiveSpacingCalculator {
 
     public enum Mode {
         DIRECT,
+        REVERSE,
+        MAP,
+        /** Legacy enum constant retained for source compatibility; use {@link #REVERSE}. */
         INVERSE;
 
         public static Mode parse(String value) {
@@ -103,7 +157,8 @@ public final class AdaptiveSpacingCalculator {
             }
             return switch (value.trim().toLowerCase(Locale.ROOT)) {
                 case "direct", "increase", "increasing", "duz", "düz" -> DIRECT;
-                case "inverse", "reverse", "decrease", "decreasing", "ters" -> INVERSE;
+                case "reverse", "inverse", "decrease", "decreasing", "ters" -> REVERSE;
+                case "map", "mapping", "scale", "normalize", "eşle", "esle" -> MAP;
                 default -> throw new IllegalArgumentException("Unknown adaptive mode: " + value);
             };
         }

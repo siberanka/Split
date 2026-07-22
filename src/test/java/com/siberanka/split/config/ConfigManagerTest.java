@@ -28,6 +28,13 @@ class ConfigManagerTest {
 
         AdaptivePlaceholder placeholder = ConfigManager.parseAdaptivePlaceholder("adaptive_spacing", section);
         assertEquals("adaptive", placeholder.getType());
+
+        ConfigurationSection mappedSection = yaml.getConfigurationSection("adaptive_mapped_number");
+        assertNotNull(mappedSection);
+        AdaptivePlaceholder mapped = ConfigManager.parseAdaptivePlaceholder("adaptive_mapped_number", mappedSection);
+        assertEquals(com.siberanka.split.util.AdaptiveSpacingCalculator.Mode.MAP, mapped.getMode());
+        assertEquals(-100, mapped.getMinimum());
+        assertEquals(100, mapped.getMaximum());
     }
 
     @Test
@@ -43,6 +50,57 @@ class ConfigManagerTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> ConfigManager.parseAdaptivePlaceholder("unsafe", yaml)
+        );
+    }
+
+    @Test
+    void parsesMapModeAndNegativeOutputRange() throws Exception {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.loadFromString("""
+                source: "%player_name%"
+                calculation:
+                  mode: map
+                  source-minimum: 2
+                  source-maximum: 12
+                  minimum: -20
+                  maximum: 30
+                result:
+                  type: number
+                """);
+
+        AdaptivePlaceholder placeholder = ConfigManager.parseAdaptivePlaceholder("mapped", yaml);
+        assertEquals(com.siberanka.split.util.AdaptiveSpacingCalculator.Mode.MAP, placeholder.getMode());
+        assertEquals(-20, placeholder.getMinimum());
+        assertEquals(30, placeholder.getMaximum());
+        assertEquals(2, placeholder.getMapSourceMinimum());
+        assertEquals(12, placeholder.getMapSourceMaximum());
+    }
+
+    @Test
+    void rejectsRangesBelowNegativeSafetyLimitAndInvalidMapSourceRange() throws Exception {
+        YamlConfiguration unsafeOutput = new YamlConfiguration();
+        unsafeOutput.loadFromString("""
+                source: "%player_name%"
+                calculation:
+                  minimum: -4097
+                  maximum: 0
+                """);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ConfigManager.parseAdaptivePlaceholder("unsafe-negative", unsafeOutput)
+        );
+
+        YamlConfiguration invalidMap = new YamlConfiguration();
+        invalidMap.loadFromString("""
+                source: "%player_name%"
+                calculation:
+                  mode: map
+                  source-minimum: 20
+                  source-maximum: 10
+                """);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ConfigManager.parseAdaptivePlaceholder("invalid-map", invalidMap)
         );
     }
 

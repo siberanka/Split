@@ -73,7 +73,7 @@ class FoliaSchedulerBridgeTest {
         try (stream) {
             String pluginYaml = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             assertTrue(pluginYaml.contains("folia-supported: true"));
-            assertTrue(pluginYaml.contains("version: '1.3.0'"));
+            assertTrue(pluginYaml.contains("version: '1.4.0'"));
         }
     }
 

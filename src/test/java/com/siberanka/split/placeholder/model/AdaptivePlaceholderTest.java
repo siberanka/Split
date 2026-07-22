@@ -47,6 +47,44 @@ class AdaptivePlaceholderTest {
     }
 
     @Test
+    void returnsNegativeNumbersAndTreatsNegativeRepeatCountAsEmpty() {
+        AdaptivePlaceholder number = negativePlaceholder(AdaptivePlaceholder.ResultType.NUMBER);
+        AdaptivePlaceholder repeat = negativePlaceholder(AdaptivePlaceholder.ResultType.REPEAT);
+
+        assertEquals("-5", number.resolve(null, null));
+        assertEquals("", repeat.resolve(null, null));
+    }
+
+    @Test
+    void mapsMeasuredSourceRangeIntoConfiguredResultRange() {
+        AdaptivePlaceholder placeholder = new AdaptivePlaceholder(
+                List.of("%source%"),
+                "",
+                250L,
+                16,
+                Mode.MAP,
+                1,
+                0,
+                -10,
+                10,
+                Rounding.NEAREST,
+                0,
+                10,
+                false,
+                false,
+                true,
+                128,
+                AdaptivePlaceholder.ResultType.TEMPLATE,
+                " ",
+                "{length}:{count}",
+                128,
+                (player, source) -> "12345"
+        );
+
+        assertEquals("5:0", placeholder.resolve(null, null));
+    }
+
+    @Test
     void resolvesAndCombinesEveryConfiguredSourceThenCachesSilently() {
         AtomicInteger resolutions = new AtomicInteger();
         AdaptivePlaceholder placeholder = new AdaptivePlaceholder(
@@ -101,6 +139,26 @@ class AdaptivePlaceholderTest {
                 resultValue,
                 resultTemplate,
                 maxOutputLength
+        );
+    }
+
+    private static AdaptivePlaceholder negativePlaceholder(AdaptivePlaceholder.ResultType resultType) {
+        return new AdaptivePlaceholder(
+                "",
+                Mode.DIRECT,
+                1,
+                -5,
+                -10,
+                10,
+                Rounding.NEAREST,
+                false,
+                true,
+                true,
+                128,
+                resultType,
+                "-",
+                "{count}",
+                32
         );
     }
 }

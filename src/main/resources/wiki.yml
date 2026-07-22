@@ -258,7 +258,7 @@
 # 4. Join resolved entries with `source-options.separator` and limit the source length.
 # 5. Optionally remove color codes and trim leading/trailing whitespace.
 # 6. Count or ignore whitespace, then count Unicode code points. An emoji counts as one character.
-# 7. Apply the direct or inverse formula, round, and clamp to minimum/maximum.
+# 7. Apply the direct, reverse, or map formula; round and clamp to minimum/maximum.
 # 8. Render the value as repeated text, a number, or a template.
 # 9. Cache and return the literal result without a second PlaceholderAPI parse.
 #
@@ -266,7 +266,8 @@
 #
 # ```text
 # direct  = base + (sourceLength × ratio)
-# inverse = base - (sourceLength × ratio)
+# reverse = base - (sourceLength × ratio)
+# map     = minimum + ((sourceLength - source-minimum) / (source-maximum - source-minimum)) × (maximum - minimum)
 # final   = rounded result clamped to [minimum, maximum]
 # ```
 #
@@ -279,9 +280,11 @@
 #     - "%vault_eco_balance_formatted%"
 #     - "%superior_island_level_format%"
 #   calculation:
-#     mode: "inverse"
+#     mode: "reverse"
 #     ratio: 1.0
 #     base: 32
+#     source-minimum: 0
+#     source-maximum: 8192
 #     minimum: 2
 #     maximum: 32
 #     rounding: "nearest"
@@ -305,33 +308,50 @@
 # #### `calculation.mode`
 #
 # - `direct`: the result grows as source length grows.
-# - `inverse`: the result shrinks as source length grows.
-# - Accepted aliases include `increase`, `increasing`, `reverse`, `decrease`, `decreasing`, `duz`, `düz`, and `ters`.
+# - `reverse`: the result shrinks as source length grows.
+# - `map`: linearly maps `source-minimum..source-maximum` to `minimum..maximum`.
+# - `inverse` remains a compatibility alias for `reverse`. Other accepted aliases include `increase`, `increasing`, `decrease`, `decreasing`, `duz`, `düz`, `ters`, `mapping`, `scale`, and `normalize`.
 # - Default: `direct`.
 #
 # #### `calculation.ratio`
 #
 # - Non-negative finite decimal.
-# - Amount added or subtracted per counted source character.
+# - Amount added or subtracted per counted source character in direct/reverse mode.
+# - Ignored in map mode.
 # - Default: `1.0`.
 #
 # #### `calculation.base`
 #
-# - Finite decimal starting point before the length adjustment.
+# - Finite decimal starting point before the length adjustment in direct/reverse mode.
 # - Default in direct mode: `minimum`.
-# - Default in inverse mode: `maximum`.
+# - Default in reverse mode: `maximum`.
+# - Ignored in map mode.
 #
 # #### `calculation.minimum`
 #
 # - Inclusive minimum calculated value.
-# - Must be zero or greater.
+# - May be negative; hard lower safety limit: `-4096`.
 # - Default: `0`.
 #
 # #### `calculation.maximum`
 #
 # - Inclusive maximum calculated value.
-# - Must be at least `minimum` and no greater than the hard limit `4096`.
+# - Must be at least `minimum` and no greater than the hard safety limit `4096`.
 # - Default: `64`.
+#
+# #### `calculation.source-minimum`
+#
+# - Lower measured-character boundary used only by map mode.
+# - Source lengths at or below it produce `calculation.minimum`.
+# - Must be zero or greater and less than `source-maximum`.
+# - Default: `0`.
+#
+# #### `calculation.source-maximum`
+#
+# - Upper measured-character boundary used only by map mode.
+# - Source lengths at or above it produce `calculation.maximum`.
+# - Must be greater than `source-minimum` and no greater than `source-options.max-characters`.
+# - Default: `source-options.max-characters`.
 #
 # #### `calculation.rounding`
 #
@@ -399,6 +419,7 @@
 # - `repeat`: repeat `result.value` the calculated number of times.
 # - `number`: return only the calculated integer.
 # - `template`: render `result.template`.
+# - Negative values are preserved by number and template (`{count}`). Repeat returns empty output for zero or negative counts.
 # - Aliases: `character`, `symbol`, and `space` mean repeat; `count` and `numeric` mean number; `format` and `text` mean template.
 # - Default: `repeat`.
 #
@@ -439,6 +460,8 @@
 # | `calculation.base` | `base-spaces`, `base` |
 # | `calculation.minimum` | `minimum`, `min-spaces`, `min` |
 # | `calculation.maximum` | `maximum`, `max-spaces`, `max` |
+# | `calculation.source-minimum` | `source-minimum`, `input-minimum` |
+# | `calculation.source-maximum` | `source-maximum`, `input-maximum` |
 # | `calculation.rounding` | `rounding` |
 # | `source-options.separator` | `source-separator`, `separator` |
 # | `source-options.cooldown-milliseconds` | `cooldown-milliseconds`, `cooldown-ms`, `cooldown` |
@@ -475,7 +498,7 @@
 # name_padding:
 #   type: "adaptive"
 #   source: "%player_name%"
-#   calculation: { mode: "inverse", ratio: 1, base: 20, minimum: 1, maximum: 20 }
+#   calculation: { mode: "reverse", ratio: 1, base: 20, minimum: 1, maximum: 20 }
 #   result: { type: "repeat", value: " " }
 # ```
 #
@@ -495,11 +518,27 @@
 # name_report:
 #   type: "adaptive"
 #   source: "%player_name%"
-#   calculation: { mode: "inverse", ratio: 1, base: 24, minimum: 0, maximum: 24 }
+#   calculation: { mode: "reverse", ratio: 1, base: 24, minimum: 0, maximum: 24 }
 #   result:
 #     type: "template"
 #     value: "•"
 #     template: "Player={source}, characters={length}, calculated={count}, symbol={value}"
+# ```
+#
+# Map a measured source range to a negative/positive result range:
+#
+# ```yaml
+# mapped_name_score:
+#   type: "adaptive"
+#   source: "%player_name%"
+#   calculation:
+#     mode: "map"
+#     source-minimum: 0
+#     source-maximum: 20
+#     minimum: -100
+#     maximum: 100
+#     rounding: "nearest"
+#   result: { type: "number" }
 # ```
 #
 # ### Why adaptive results are literal
@@ -799,7 +838,7 @@
 # 4. Çözümlenen öğeleri `source-options.separator` ile birleştir ve kaynak uzunluğunu sınırla.
 # 5. İstenirse renk kodlarını kaldır ve baştaki/sondaki boşlukları temizle.
 # 6. Boşlukları say veya yok say, ardından Unicode code point say. Bir emoji tek karakterdir.
-# 7. Doğrudan/ters formülü uygula, yuvarla ve minimum/maximum aralığına sınırla.
+# 7. Direct, reverse veya map formülünü uygula; yuvarla ve minimum/maximum aralığına sınırla.
 # 8. Değeri tekrar, sayı veya şablon biçiminde üret.
 # 9. Literal sonucu cache'e al ve ikinci PlaceholderAPI ayrıştırması yapmadan döndür.
 #
@@ -807,7 +846,8 @@
 #
 # ```text
 # direct  = base + (kaynakUzunluğu × ratio)
-# inverse = base - (kaynakUzunluğu × ratio)
+# reverse = base - (kaynakUzunluğu × ratio)
+# map     = minimum + ((kaynakUzunluğu - source-minimum) / (source-maximum - source-minimum)) × (maximum - minimum)
 # sonuç   = yuvarlanmış değer, [minimum, maximum] aralığına sınırlandırılır
 # ```
 #
@@ -820,9 +860,11 @@
 #     - "%vault_eco_balance_formatted%"
 #     - "%superior_island_level_format%"
 #   calculation:
-#     mode: "inverse"
+#     mode: "reverse"
 #     ratio: 1.0
 #     base: 32
+#     source-minimum: 0
+#     source-maximum: 8192
 #     minimum: 2
 #     maximum: 32
 #     rounding: "nearest"
@@ -846,26 +888,29 @@
 # #### `calculation.mode`
 #
 # - `direct`: kaynak uzadıkça sonuç büyür.
-# - `inverse`: kaynak uzadıkça sonuç küçülür.
-# - `increase`, `increasing`, `reverse`, `decrease`, `decreasing`, `duz`, `düz` ve `ters` alias'ları kabul edilir.
+# - `reverse`: kaynak uzadıkça sonuç küçülür.
+# - `map`: `source-minimum..source-maximum` aralığını `minimum..maximum` aralığına doğrusal eşler.
+# - `inverse`, `reverse` için geriye uyumlu alias olarak kalır. `increase`, `increasing`, `decrease`, `decreasing`, `duz`, `düz`, `ters`, `mapping`, `scale` ve `normalize` alias'ları da kabul edilir.
 # - Varsayılan: `direct`.
 #
 # #### `calculation.ratio`
 #
 # - Negatif olmayan sonlu ondalık sayı.
-# - Sayılan her kaynak karakteri için eklenecek veya çıkarılacak miktar.
+# - Direct/reverse modunda sayılan her kaynak karakteri için eklenecek veya çıkarılacak miktar.
+# - Map modunda yok sayılır.
 # - Varsayılan: `1.0`.
 #
 # #### `calculation.base`
 #
-# - Uzunluk değişimi öncesindeki sonlu ondalık başlangıç değeri.
+# - Direct/reverse modunda uzunluk değişimi öncesindeki sonlu ondalık başlangıç değeri.
 # - Direct modundaki varsayılanı: `minimum`.
-# - Inverse modundaki varsayılanı: `maximum`.
+# - Reverse modundaki varsayılanı: `maximum`.
+# - Map modunda yok sayılır.
 #
 # #### `calculation.minimum`
 #
 # - Hesaplanan değerin dahilî alt sınırı.
-# - Sıfır veya daha büyük olmalıdır.
+# - Negatif olabilir; sert alt güvenlik sınırı `-4096` değeridir.
 # - Varsayılan: `0`.
 #
 # #### `calculation.maximum`
@@ -873,6 +918,20 @@
 # - Hesaplanan değerin dahilî üst sınırı.
 # - `minimum` değerinden küçük ve sert güvenlik sınırı `4096` değerinden büyük olamaz.
 # - Varsayılan: `64`.
+#
+# #### `calculation.source-minimum`
+#
+# - Yalnızca map modunun kullandığı alt ölçülmüş-karakter sınırıdır.
+# - Bu değerdeki veya altındaki kaynak uzunluğu `calculation.minimum` üretir.
+# - Sıfır veya daha büyük ve `source-maximum` değerinden küçük olmalıdır.
+# - Varsayılan: `0`.
+#
+# #### `calculation.source-maximum`
+#
+# - Yalnızca map modunun kullandığı üst ölçülmüş-karakter sınırıdır.
+# - Bu değerdeki veya üstündeki kaynak uzunluğu `calculation.maximum` üretir.
+# - `source-minimum` değerinden büyük, `source-options.max-characters` değerinden küçük veya ona eşit olmalıdır.
+# - Varsayılan: `source-options.max-characters`.
 #
 # #### `calculation.rounding`
 #
@@ -940,6 +999,7 @@
 # - `repeat`: `result.value` değerini hesaplanan sayı kadar tekrarlar.
 # - `number`: yalnızca hesaplanan tam sayıyı döndürür.
 # - `template`: `result.template` şablonunu üretir.
+# - Negatif değerler number ve template (`{count}`) tarafından korunur. Repeat sıfır veya negatif adette boş çıktı döndürür.
 # - Alias'lar: `character`, `symbol`, `space` repeat; `count`, `numeric` number; `format`, `text` template anlamına gelir.
 # - Varsayılan: `repeat`.
 #
@@ -980,6 +1040,8 @@
 # | `calculation.base` | `base-spaces`, `base` |
 # | `calculation.minimum` | `minimum`, `min-spaces`, `min` |
 # | `calculation.maximum` | `maximum`, `max-spaces`, `max` |
+# | `calculation.source-minimum` | `source-minimum`, `input-minimum` |
+# | `calculation.source-maximum` | `source-maximum`, `input-maximum` |
 # | `calculation.rounding` | `rounding` |
 # | `source-options.separator` | `source-separator`, `separator` |
 # | `source-options.cooldown-milliseconds` | `cooldown-milliseconds`, `cooldown-ms`, `cooldown` |
@@ -1016,7 +1078,7 @@
 # ad_boslugu:
 #   type: "adaptive"
 #   source: "%player_name%"
-#   calculation: { mode: "inverse", ratio: 1, base: 20, minimum: 1, maximum: 20 }
+#   calculation: { mode: "reverse", ratio: 1, base: 20, minimum: 1, maximum: 20 }
 #   result: { type: "repeat", value: " " }
 # ```
 #
@@ -1036,11 +1098,27 @@
 # ad_raporu:
 #   type: "adaptive"
 #   source: "%player_name%"
-#   calculation: { mode: "inverse", ratio: 1, base: 24, minimum: 0, maximum: 24 }
+#   calculation: { mode: "reverse", ratio: 1, base: 24, minimum: 0, maximum: 24 }
 #   result:
 #     type: "template"
 #     value: "•"
 #     template: "Oyuncu={source}, karakter={length}, hesaplanan={count}, sembol={value}"
+# ```
+#
+# Ölçülen kaynak aralığını negatif/pozitif sonuç aralığına eşleme:
+#
+# ```yaml
+# map_ad_puani:
+#   type: "adaptive"
+#   source: "%player_name%"
+#   calculation:
+#     mode: "map"
+#     source-minimum: 0
+#     source-maximum: 20
+#     minimum: -100
+#     maximum: 100
+#     rounding: "nearest"
+#   result: { type: "number" }
 # ```
 #
 # ### Adaptive sonuçlar neden literaldir?
