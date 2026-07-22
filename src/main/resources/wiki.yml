@@ -258,7 +258,7 @@
 # 4. Join resolved entries with `source-options.separator` and limit the source length.
 # 5. Optionally remove color codes and trim leading/trailing whitespace.
 # 6. Count or ignore whitespace, then count Unicode code points. An emoji counts as one character.
-# 7. Apply the direct, reverse, or map formula; round and clamp to minimum/maximum.
+# 7. Apply the direct, reverse, or map formula; round and clamp between the configured output endpoints.
 # 8. Render the value as repeated text, a number, or a template.
 # 9. Cache and return the literal result without a second PlaceholderAPI parse.
 #
@@ -268,7 +268,7 @@
 # direct  = base + (sourceLength × ratio)
 # reverse = base - (sourceLength × ratio)
 # map     = minimum + ((sourceLength - source-minimum) / (source-maximum - source-minimum)) × (maximum - minimum)
-# final   = rounded result clamped to [minimum, maximum]
+# final   = rounded result clamped between the two configured output endpoints
 # ```
 #
 # ### Complete canonical configuration
@@ -309,7 +309,7 @@
 #
 # - `direct`: the result grows as source length grows.
 # - `reverse`: the result shrinks as source length grows.
-# - `map`: linearly maps `source-minimum..source-maximum` to `minimum..maximum`.
+# - `map`: linearly maps `source-minimum..source-maximum` to `minimum..maximum`. The output endpoints may ascend or descend.
 # - `inverse` remains a compatibility alias for `reverse`. Other accepted aliases include `increase`, `increasing`, `decrease`, `decreasing`, `duz`, `düz`, `ters`, `mapping`, `scale`, and `normalize`.
 # - Default: `direct`.
 #
@@ -329,14 +329,16 @@
 #
 # #### `calculation.minimum`
 #
-# - Inclusive minimum calculated value.
-# - May be negative; hard lower safety limit: `-4096`.
+# - First output endpoint; each value from `-4096` through `4096` is valid.
+# - In direct/reverse mode it remains the inclusive lower bound and cannot exceed `maximum`.
+# - In map mode it is the result at `source-minimum`, so it may be greater than `maximum` for a descending map.
 # - Default: `0`.
 #
 # #### `calculation.maximum`
 #
-# - Inclusive maximum calculated value.
-# - Must be at least `minimum` and no greater than the hard safety limit `4096`.
+# - Second output endpoint; each value from `-4096` through `4096` is valid.
+# - In direct/reverse mode it remains the inclusive upper bound and must be at least `minimum`.
+# - In map mode it is the result at `source-maximum`, so it may be less than `minimum` for a descending map.
 # - Default: `64`.
 #
 # #### `calculation.source-minimum`
@@ -525,7 +527,7 @@
 #     template: "Player={source}, characters={length}, calculated={count}, symbol={value}"
 # ```
 #
-# Map a measured source range to a negative/positive result range:
+# Descending map: 0 measured characters -> 100, 10 -> 0, 20 or more -> -100:
 #
 # ```yaml
 # mapped_name_score:
@@ -535,8 +537,8 @@
 #     mode: "map"
 #     source-minimum: 0
 #     source-maximum: 20
-#     minimum: -100
-#     maximum: 100
+#     minimum: 100
+#     maximum: -100
 #     rounding: "nearest"
 #   result: { type: "number" }
 # ```
@@ -838,7 +840,7 @@
 # 4. Çözümlenen öğeleri `source-options.separator` ile birleştir ve kaynak uzunluğunu sınırla.
 # 5. İstenirse renk kodlarını kaldır ve baştaki/sondaki boşlukları temizle.
 # 6. Boşlukları say veya yok say, ardından Unicode code point say. Bir emoji tek karakterdir.
-# 7. Direct, reverse veya map formülünü uygula; yuvarla ve minimum/maximum aralığına sınırla.
+# 7. Direct, reverse veya map formülünü uygula; yuvarla ve yapılandırılan çıktı uçları arasında sınırla.
 # 8. Değeri tekrar, sayı veya şablon biçiminde üret.
 # 9. Literal sonucu cache'e al ve ikinci PlaceholderAPI ayrıştırması yapmadan döndür.
 #
@@ -848,7 +850,7 @@
 # direct  = base + (kaynakUzunluğu × ratio)
 # reverse = base - (kaynakUzunluğu × ratio)
 # map     = minimum + ((kaynakUzunluğu - source-minimum) / (source-maximum - source-minimum)) × (maximum - minimum)
-# sonuç   = yuvarlanmış değer, [minimum, maximum] aralığına sınırlandırılır
+# sonuç   = yuvarlanmış değer, yapılandırılan iki çıktı uç değeri arasında sınırlandırılır
 # ```
 #
 # ### Eksiksiz standart yapılandırma
@@ -889,7 +891,7 @@
 #
 # - `direct`: kaynak uzadıkça sonuç büyür.
 # - `reverse`: kaynak uzadıkça sonuç küçülür.
-# - `map`: `source-minimum..source-maximum` aralığını `minimum..maximum` aralığına doğrusal eşler.
+# - `map`: `source-minimum..source-maximum` aralığını `minimum..maximum` aralığına doğrusal eşler. Çıktı uçları artan veya azalan sırada olabilir.
 # - `inverse`, `reverse` için geriye uyumlu alias olarak kalır. `increase`, `increasing`, `decrease`, `decreasing`, `duz`, `düz`, `ters`, `mapping`, `scale` ve `normalize` alias'ları da kabul edilir.
 # - Varsayılan: `direct`.
 #
@@ -909,14 +911,16 @@
 #
 # #### `calculation.minimum`
 #
-# - Hesaplanan değerin dahilî alt sınırı.
-# - Negatif olabilir; sert alt güvenlik sınırı `-4096` değeridir.
+# - İlk çıktı uç değeridir; `-4096` ile `4096` arasındaki her değer geçerlidir.
+# - Direct/reverse modunda dahilî alt sınırdır ve `maximum` değerini aşamaz.
+# - Map modunda `source-minimum` noktasının sonucudur; azalan eşleme için `maximum` değerinden büyük olabilir.
 # - Varsayılan: `0`.
 #
 # #### `calculation.maximum`
 #
-# - Hesaplanan değerin dahilî üst sınırı.
-# - `minimum` değerinden küçük ve sert güvenlik sınırı `4096` değerinden büyük olamaz.
+# - İkinci çıktı uç değeridir; `-4096` ile `4096` arasındaki her değer geçerlidir.
+# - Direct/reverse modunda dahilî üst sınırdır ve en az `minimum` kadar olmalıdır.
+# - Map modunda `source-maximum` noktasının sonucudur; azalan eşleme için `minimum` değerinden küçük olabilir.
 # - Varsayılan: `64`.
 #
 # #### `calculation.source-minimum`
@@ -1105,7 +1109,7 @@
 #     template: "Oyuncu={source}, karakter={length}, hesaplanan={count}, sembol={value}"
 # ```
 #
-# Ölçülen kaynak aralığını negatif/pozitif sonuç aralığına eşleme:
+# Azalan eşleme: 0 ölçülmüş karakter -> 100, 10 -> 0, 20 ve üzeri -> -100:
 #
 # ```yaml
 # map_ad_puani:
@@ -1115,8 +1119,8 @@
 #     mode: "map"
 #     source-minimum: 0
 #     source-maximum: 20
-#     minimum: -100
-#     maximum: 100
+#     minimum: 100
+#     maximum: -100
 #     rounding: "nearest"
 #   result: { type: "number" }
 # ```

@@ -49,6 +49,22 @@ class AdaptiveSpacingCalculatorTest {
     }
 
     @Test
+    void mapsSourceRangeAcrossDescendingResultEndpoints() {
+        assertEquals(100, descendingMap(0));
+        assertEquals(50, descendingMap(5));
+        assertEquals(0, descendingMap(10));
+        assertEquals(-100, descendingMap(20));
+        assertEquals(-100, descendingMap(30));
+
+        assertEquals(3, AdaptiveSpacingCalculator.calculate(
+                1, Mode.MAP, 1, 0, 10, -10, Rounding.FLOOR, 0, 3
+        ));
+        assertEquals(4, AdaptiveSpacingCalculator.calculate(
+                1, Mode.MAP, 1, 0, 10, -10, Rounding.CEILING, 0, 3
+        ));
+    }
+
+    @Test
     void parsesCanonicalModesAndKeepsInverseAlias() {
         assertEquals(Mode.DIRECT, Mode.parse("direct"));
         assertEquals(Mode.REVERSE, Mode.parse("reverse"));
@@ -100,6 +116,20 @@ class AdaptiveSpacingCalculatorTest {
                 Rounding.NEAREST,
                 0,
                 10
+        );
+    }
+
+    private static int descendingMap(int sourceLength) {
+        return AdaptiveSpacingCalculator.calculate(
+                sourceLength,
+                Mode.MAP,
+                1,
+                0,
+                100,
+                -100,
+                Rounding.NEAREST,
+                0,
+                20
         );
     }
 }

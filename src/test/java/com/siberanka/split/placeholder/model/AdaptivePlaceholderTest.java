@@ -85,6 +85,35 @@ class AdaptivePlaceholderTest {
     }
 
     @Test
+    void mapsMeasuredSourceRangeAcrossDescendingResultEndpoints() {
+        AdaptivePlaceholder placeholder = new AdaptivePlaceholder(
+                List.of("%source%"),
+                "",
+                250L,
+                16,
+                Mode.MAP,
+                1,
+                0,
+                100,
+                -100,
+                Rounding.NEAREST,
+                0,
+                20,
+                false,
+                false,
+                true,
+                128,
+                AdaptivePlaceholder.ResultType.NUMBER,
+                " ",
+                "{count}",
+                128,
+                (player, source) -> "12345"
+        );
+
+        assertEquals("50", placeholder.resolve(null, null));
+    }
+
+    @Test
     void resolvesAndCombinesEveryConfiguredSourceThenCachesSilently() {
         AtomicInteger resolutions = new AtomicInteger();
         AdaptivePlaceholder placeholder = new AdaptivePlaceholder(

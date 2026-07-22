@@ -40,6 +40,7 @@
 #    Counts Unicode characters in a resolved source and calculates a bounded value.
 #    DIRECT: base + (length * ratio), REVERSE: base - (length * ratio).
 #    MAP: linearly maps source-minimum..source-maximum to minimum..maximum.
+#    MAP endpoints may descend, for example minimum: 100 and maximum: -100.
 #    Numeric/template output may be negative; repeat is empty at zero or below.
 #    The result can repeat any text, return the number, or render a template.
 #    See the working example at the end of this file.
@@ -84,6 +85,7 @@
 #    Çözümlenmiş kaynağın Unicode karakterlerini sayar ve sınırlı bir değer hesaplar.
 #    DIRECT: taban + (uzunluk * oran), REVERSE: taban - (uzunluk * oran).
 #    MAP: source-minimum..source-maximum aralığını minimum..maximum aralığına eşler.
+#    MAP uçları azalabilir; örneğin minimum: 100 ve maximum: -100 geçerlidir.
 #    Sayı/template negatif olabilir; repeat sıfır veya altında boş döner.
 #    Sonuç; istenen metni tekrarlayabilir, sayı döndürebilir veya şablon üretebilir.
 #    Dosyanın sonundaki çalışan örneğe bakın.
@@ -139,7 +141,9 @@ adaptive_spacing:
     max-length: 8192
 
 # MAP example / MAP örneği:
-# %split_adaptive_mapped_number% maps 0..20 measured characters to -100..100.
+# %split_adaptive_mapped_number% maps 0..20 measured characters to 100..-100.
+# In MAP mode, minimum and maximum are endpoints and may descend numerically.
+# MAP modunda minimum ve maximum uç değerlerdir; sayısal olarak azalabilirler.
 adaptive_mapped_number:
   type: "adaptive"
   source: "%player_name%"
@@ -147,8 +151,8 @@ adaptive_mapped_number:
     mode: "map"
     source-minimum: 0
     source-maximum: 20
-    minimum: -100
-    maximum: 100
+    minimum: 100
+    maximum: -100
     rounding: "nearest"
   result:
     type: "number"

@@ -62,9 +62,13 @@ public final class AdaptiveSpacingCalculator {
             throw new IllegalArgumentException("Base must be finite");
         }
         if (minimum < MIN_CALCULATED_VALUE
-                || maximum < minimum
+                || minimum > MAX_CALCULATED_VALUE
+                || maximum < MIN_CALCULATED_VALUE
                 || maximum > MAX_CALCULATED_VALUE) {
-            throw new IllegalArgumentException("Invalid minimum/maximum range");
+            throw new IllegalArgumentException("Minimum and maximum must be within the safe calculation limits");
+        }
+        if (mode != Mode.MAP && maximum < minimum) {
+            throw new IllegalArgumentException("Minimum cannot exceed maximum outside map mode");
         }
         if (mapSourceMinimum < 0 || mapSourceMaximum <= mapSourceMinimum) {
             throw new IllegalArgumentException("Invalid map source range");
@@ -81,14 +85,16 @@ public final class AdaptiveSpacingCalculator {
                     maximum
             );
         };
-        double bounded = Math.max(minimum, Math.min(maximum, raw));
+        int lowerBound = Math.min(minimum, maximum);
+        int upperBound = Math.max(minimum, maximum);
+        double bounded = Math.max(lowerBound, Math.min(upperBound, raw));
 
         long rounded = switch (rounding) {
             case FLOOR -> (long) Math.floor(bounded);
             case CEILING -> (long) Math.ceil(bounded);
             case NEAREST -> Math.round(bounded);
         };
-        return (int) Math.max(minimum, Math.min(maximum, rounded));
+        return (int) Math.max(lowerBound, Math.min(upperBound, rounded));
     }
 
     private static double mapLinearly(
@@ -99,6 +105,7 @@ public final class AdaptiveSpacingCalculator {
             int resultMaximum
     ) {
         double progress = (double) (sourceLength - sourceMinimum) / (sourceMaximum - sourceMinimum);
+        progress = Math.max(0.0D, Math.min(1.0D, progress));
         return resultMinimum + (progress * (resultMaximum - resultMinimum));
     }
 

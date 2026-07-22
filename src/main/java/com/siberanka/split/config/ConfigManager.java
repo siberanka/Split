@@ -208,9 +208,16 @@ public class ConfigManager {
         if (!Double.isFinite(base)) {
             throw new IllegalArgumentException(context + " base must be finite");
         }
-        if (minimum < MIN_ADAPTIVE_COUNT || maximum < minimum || maximum > MAX_ADAPTIVE_COUNT) {
-            throw new IllegalArgumentException(context + " range must satisfy " + MIN_ADAPTIVE_COUNT
-                    + " <= minimum <= maximum <= " + MAX_ADAPTIVE_COUNT);
+        if (minimum < MIN_ADAPTIVE_COUNT
+                || minimum > MAX_ADAPTIVE_COUNT
+                || maximum < MIN_ADAPTIVE_COUNT
+                || maximum > MAX_ADAPTIVE_COUNT) {
+            throw new IllegalArgumentException(context + " minimum and maximum must each be between "
+                    + MIN_ADAPTIVE_COUNT + " and " + MAX_ADAPTIVE_COUNT);
+        }
+        if (mode != AdaptiveSpacingCalculator.Mode.MAP && maximum < minimum) {
+            throw new IllegalArgumentException(context
+                    + " minimum cannot exceed maximum in direct or reverse mode");
         }
 
         boolean trimSource = readBoolean(section, false, "source-options.trim", "trim-source");

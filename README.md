@@ -120,7 +120,7 @@ The calculation formulas are:
 direct  = base + (source length × ratio)
 reverse = base - (source length × ratio)
 map     = minimum + ((source length - source-minimum) / (source-maximum - source-minimum)) × (maximum - minimum)
-result  = rounded and clamped to [minimum, maximum]
+result  = rounded and clamped between the two configured output endpoints
 ```
 
 | Setting | Values / behavior |
@@ -128,8 +128,8 @@ result  = rounded and clamped to [minimum, maximum]
 | `calculation.mode` | `direct` increases, `reverse` decreases, and `map` linearly maps the configured source range to the result range. `inverse` remains a compatibility alias for `reverse`. |
 | `calculation.ratio` | Non-negative decimal multiplier used by `direct`/`reverse`; ignored by `map`. |
 | `calculation.base` | Starting value used by `direct`/`reverse`; ignored by `map`. Defaults to `minimum` in direct mode and `maximum` in reverse mode. |
-| `calculation.minimum` / `maximum` | Inclusive result range; each value may be negative. Required order is `-4096 <= minimum <= maximum <= 4096`. |
-| `calculation.source-minimum` / `source-maximum` | Input character range used only by `map`; defaults to `0` and `source-options.max-characters`. Values below/above it clamp to result minimum/maximum. |
+| `calculation.minimum` / `maximum` | Output endpoints, each independently limited to `-4096..4096`. In `direct`/`reverse`, `minimum <= maximum` is required. In `map`, either order is valid: `minimum: 100` and `maximum: -100` creates a descending map. |
+| `calculation.source-minimum` / `source-maximum` | Input character range used only by `map`; defaults to `0` and `source-options.max-characters`. The lower source endpoint maps to `minimum`, and the upper endpoint maps to `maximum`, regardless of their numeric order. |
 | `calculation.rounding` | `floor`, `ceiling`, or `nearest`. |
 | `source` | One string or an ordered YAML list of `1..32` strings; total configured limit `8192` Unicode characters. |
 | `source-options.separator` | Literal text inserted between resolved list items; default empty text, maximum 128 characters. It is included in the measured source. |
@@ -173,7 +173,7 @@ adaptive_template:
     value: "•"
     template: "{source}: {length} chars / {count} units"
 
-# Map 0..20 source characters to a -100..100 numeric result
+# Descending map: 0 characters -> 100, 10 -> 0, 20 or more -> -100
 adaptive_mapped_number:
   type: "adaptive"
   source: "%player_name%"
@@ -181,8 +181,8 @@ adaptive_mapped_number:
     mode: "map"
     source-minimum: 0
     source-maximum: 20
-    minimum: -100
-    maximum: 100
+    minimum: 100
+    maximum: -100
     rounding: "nearest"
   result: { type: "number" }
 ```
@@ -311,7 +311,7 @@ Hesaplama formülleri:
 direct  = base + (kaynak uzunluğu × ratio)
 reverse = base - (kaynak uzunluğu × ratio)
 map     = minimum + ((kaynak uzunluğu - source-minimum) / (source-maximum - source-minimum)) × (maximum - minimum)
-sonuç   = yuvarlanır ve [minimum, maximum] aralığına sınırlandırılır
+sonuç   = yuvarlanır ve yapılandırılan iki çıktı uç değeri arasında sınırlandırılır
 ```
 
 | Ayar | Değer / davranış |
@@ -319,8 +319,8 @@ sonuç   = yuvarlanır ve [minimum, maximum] aralığına sınırlandırılır
 | `calculation.mode` | `direct` artırır, `reverse` azaltır, `map` ise kaynak aralığını sonuç aralığına doğrusal eşler. `inverse`, `reverse` için geriye uyumlu alias olarak kalır. |
 | `calculation.ratio` | `direct`/`reverse` tarafından kullanılan negatif olmayan oran; `map` modunda yok sayılır. |
 | `calculation.base` | `direct`/`reverse` başlangıç değeri; `map` modunda yok sayılır. Varsayılan direct için `minimum`, reverse için `maximum` değeridir. |
-| `calculation.minimum` / `maximum` | Negatif olabilen dahilî sonuç aralığı. Sıralama `-4096 <= minimum <= maximum <= 4096` olmalıdır. |
-| `calculation.source-minimum` / `source-maximum` | Yalnızca `map` için giriş karakter aralığı; varsayılan `0` ve `source-options.max-characters`. Aralık dışı uzunluklar sonuç minimum/maximum değerine sabitlenir. |
+| `calculation.minimum` / `maximum` | Her biri bağımsız olarak `-4096..4096` ile sınırlı çıktı uç değerleridir. `direct`/`reverse` için `minimum <= maximum` zorunludur. `map` modunda iki sıra da geçerlidir: `minimum: 100`, `maximum: -100` azalan/tersinir eşleme oluşturur. |
+| `calculation.source-minimum` / `source-maximum` | Yalnızca `map` için giriş karakter aralığı; varsayılan `0` ve `source-options.max-characters`. Alt kaynak ucu, sayısal sıralamadan bağımsız biçimde `minimum` değerine; üst kaynak ucu `maximum` değerine eşlenir. |
 | `calculation.rounding` | `floor` (aşağı), `ceiling` (yukarı) veya `nearest` (en yakın). |
 | `source` | Tek metin veya sıralı `1..32` öğelik YAML listesi; toplam yapılandırılmış sınır `8192` Unicode karakteridir. |
 | `source-options.separator` | Çözümlenen liste öğeleri arasına eklenen literal metin; varsayılan boş, en fazla 128 karakterdir ve kaynak sayımına dahildir. |
@@ -364,7 +364,7 @@ adaptive_template:
     value: "•"
     template: "{source}: {length} karakter / {count} birim"
 
-# 0..20 kaynak karakterini -100..100 sayısına eşler
+# Azalan eşleme: 0 karakter -> 100, 10 -> 0, 20 ve üzeri -> -100
 adaptive_map_sayi:
   type: "adaptive"
   source: "%player_name%"
@@ -372,8 +372,8 @@ adaptive_map_sayi:
     mode: "map"
     source-minimum: 0
     source-maximum: 20
-    minimum: -100
-    maximum: 100
+    minimum: 100
+    maximum: -100
     rounding: "nearest"
   result: { type: "number" }
 ```

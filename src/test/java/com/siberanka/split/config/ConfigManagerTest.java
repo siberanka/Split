@@ -33,8 +33,8 @@ class ConfigManagerTest {
         assertNotNull(mappedSection);
         AdaptivePlaceholder mapped = ConfigManager.parseAdaptivePlaceholder("adaptive_mapped_number", mappedSection);
         assertEquals(com.siberanka.split.util.AdaptiveSpacingCalculator.Mode.MAP, mapped.getMode());
-        assertEquals(-100, mapped.getMinimum());
-        assertEquals(100, mapped.getMaximum());
+        assertEquals(100, mapped.getMinimum());
+        assertEquals(-100, mapped.getMaximum());
     }
 
     @Test
@@ -74,6 +74,38 @@ class ConfigManagerTest {
         assertEquals(30, placeholder.getMaximum());
         assertEquals(2, placeholder.getMapSourceMinimum());
         assertEquals(12, placeholder.getMapSourceMaximum());
+    }
+
+    @Test
+    void acceptsDescendingMapEndpointsButRejectsDescendingDirectRange() throws Exception {
+        YamlConfiguration descendingMap = new YamlConfiguration();
+        descendingMap.loadFromString("""
+                source: "%player_name%"
+                calculation:
+                  mode: map
+                  source-minimum: 0
+                  source-maximum: 20
+                  minimum: 100
+                  maximum: -100
+                """);
+
+        AdaptivePlaceholder mapped = ConfigManager.parseAdaptivePlaceholder("descending-map", descendingMap);
+        assertEquals(100, mapped.getMinimum());
+        assertEquals(-100, mapped.getMaximum());
+
+        YamlConfiguration descendingDirect = new YamlConfiguration();
+        descendingDirect.loadFromString("""
+                source: "%player_name%"
+                calculation:
+                  mode: direct
+                  minimum: 100
+                  maximum: -100
+                """);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ConfigManager.parseAdaptivePlaceholder("descending-direct", descendingDirect)
+        );
     }
 
     @Test
