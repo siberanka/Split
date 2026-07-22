@@ -38,8 +38,8 @@
 # ## 2. Requirements and Installation
 #
 # - Java 21.
-# - A Spigot/Paper-compatible server. The build targets Spigot API 1.20.4.
-# - PlaceholderAPI is required to register and use `%split_*%` placeholders.
+# - A Spigot/Paper-compatible server or Folia. The build targets Spigot API 1.20.4.
+# - PlaceholderAPI is required to register and use `%split_*%` placeholders. Split builds against 2.12.2; Folia requires a Folia-capable PlaceholderAPI release (2.11.7 or newer).
 # - Floodgate is optional. Without Floodgate, online players resolve as Java players in `simple` placeholders.
 #
 # Installation:
@@ -50,6 +50,18 @@
 # 4. Start the server.
 # 5. Edit the real configuration files under `plugins/Split/`.
 # 6. Run `/split reload` or restart the server.
+#
+# ### Platform and Folia behavior
+#
+# - The same JAR supports Spigot/Paper and Folia; no separate Folia build is required.
+# - `plugin.yml` declares `folia-supported: true`, allowing Folia to load Split.
+# - Folia is detected with Paper's official `RegionizedServer` marker.
+# - On Folia, configuration/wiki disk work uses the async scheduler.
+# - Player replies use that player's entity scheduler, which follows the entity between regions.
+# - Console and other non-entity replies use the global-region scheduler.
+# - On Bukkit/Paper, Split uses the equivalent classic Bukkit scheduler paths.
+# - Shutdown rejects new scheduled work and cancels owned async/global tasks. A retired player response is safely discarded.
+# - PlaceholderAPI requires a synchronous result. Split therefore evaluates placeholders in the caller's valid context and never blocks one Folia region waiting for another.
 #
 # ## 3. Files and Their Authority
 #
@@ -78,7 +90,7 @@
 # - Permission: `split.admin`
 # - Console use: supported.
 # - Disk parsing runs asynchronously.
-# - Player/console response messages are sent on the server thread.
+# - On Folia, player responses use the owning entity scheduler and console responses use the global-region scheduler. Bukkit/Paper uses its server scheduler.
 # - Only one reload may run at once.
 # - A malformed configuration does not replace the active configuration. The last valid in-memory configuration continues running.
 #
@@ -502,6 +514,8 @@
 # - Split placeholder parameters longer than 128 UTF-16 units are rejected.
 # - Runtime resolution errors fail closed to an empty value; detailed stack traces are logged only when debug mode is enabled.
 # - Configuration reload uses an atomic in-memory swap. Requests see either the complete previous configuration or the complete new configuration.
+# - Folia-specific classes are isolated behind a runtime bridge, preserving one-JAR Spigot/Paper compatibility.
+# - No classic Bukkit scheduler call is made on Folia; entity, global-region, and async ownership rules are respected.
 # - Adaptive limits bound source entries, cache size, counting, and generated output.
 #
 # ## 13. Troubleshooting
@@ -565,8 +579,8 @@
 # ## 2. Gereksinimler ve Kurulum
 #
 # - Java 21.
-# - Spigot/Paper uyumlu sunucu. Build hedefi Spigot API 1.20.4'tür.
-# - `%split_*%` placeholder'larını kaydetmek ve kullanmak için PlaceholderAPI gereklidir.
+# - Spigot/Paper uyumlu sunucu veya Folia. Build hedefi Spigot API 1.20.4'tür.
+# - `%split_*%` placeholder'larını kaydetmek ve kullanmak için PlaceholderAPI gereklidir. Split 2.12.2 ile build edilir; Folia, Folia destekli PlaceholderAPI sürümü (2.11.7 veya üzeri) gerektirir.
 # - Floodgate isteğe bağlıdır. Floodgate yoksa çevrimiçi oyuncular `simple` placeholder'larda Java oyuncusu sayılır.
 #
 # Kurulum:
@@ -577,6 +591,18 @@
 # 4. Sunucuyu başlatın.
 # 5. Gerçek ayar dosyalarını `plugins/Split/` altında düzenleyin.
 # 6. `/split reload` çalıştırın veya sunucuyu yeniden başlatın.
+#
+# ### Platform ve Folia davranışı
+#
+# - Aynı JAR Spigot/Paper ve Folia'yı destekler; ayrı bir Folia build'i gerekmez.
+# - `plugin.yml`, Folia'nın Split'i yükleyebilmesi için `folia-supported: true` bildirir.
+# - Folia, Paper'ın resmi `RegionizedServer` işaretçisiyle tespit edilir.
+# - Folia üzerinde yapılandırma/wiki disk işleri async scheduler ile çalışır.
+# - Oyuncu cevapları bölgeler arasında entity'yi takip eden oyuncu entity scheduler'ını kullanır.
+# - Konsol ve entity olmayan diğer cevaplar global-region scheduler'ı kullanır.
+# - Bukkit/Paper üzerinde Split eşdeğer klasik Bukkit scheduler yollarını kullanır.
+# - Kapanış yeni görevleri reddeder ve sahip olunan async/global görevleri iptal eder. Retired oyuncu cevabı güvenle bırakılır.
+# - PlaceholderAPI senkron sonuç ister. Split bu yüzden placeholder'ları çağıranın geçerli bağlamında hesaplar ve bir Folia bölgesini başka bölgeyi bekleyerek bloklamaz.
 #
 # ## 3. Dosyalar ve Geçerlilikleri
 #
@@ -605,7 +631,7 @@
 # - Yetki: `split.admin`
 # - Konsoldan kullanım: desteklenir.
 # - Disk okuma ve ayrıştırma asenkron çalışır.
-# - Oyuncu/konsol cevapları sunucunun ana thread'inde gönderilir.
+# - Folia'da oyuncu cevabı owning entity scheduler, konsol cevabı global-region scheduler kullanır. Bukkit/Paper kendi sunucu scheduler'ını kullanır.
 # - Aynı anda yalnızca bir reload çalışabilir.
 # - Hatalı yapılandırma aktif ayarların yerini almaz. Bellekteki son geçerli yapılandırma çalışmaya devam eder.
 #
@@ -1029,6 +1055,8 @@
 # - 128 UTF-16 biriminden uzun Split placeholder parametreleri reddedilir.
 # - Runtime çözümleme hataları güvenli biçimde boş değere düşer; ayrıntılı stack trace yalnızca debug açıkken loglanır.
 # - Yapılandırma reload'u atomik bellek geçişi kullanır. İstekler ya önceki tam yapılandırmayı ya yeni tam yapılandırmayı görür.
+# - Folia'ya özel sınıflar runtime köprüsünün arkasında yalıtılır; tek JAR ile Spigot/Paper uyumluluğu korunur.
+# - Folia üzerinde klasik Bukkit scheduler çağrısı yapılmaz; entity, global-region ve async sahiplik kurallarına uyulur.
 # - Adaptive sınırlar kaynak öğelerini, cache boyutunu, sayımı ve üretilen çıktı yükünü kontrol altında tutar.
 #
 # ## 13. Sorun Giderme

@@ -48,27 +48,43 @@ public class SplitCommand implements CommandExecutor, TabCompleter {
             }
 
             String senderName = sender.getName();
-            // Run config reloading asynchronously to prevent blocking the main server thread (disk I/O)
-            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
-                try {
-                    plugin.refreshDocumentation();
-                    plugin.getConfigManager().load();
-                    // Load successful
-                    ConfigManager.ConfigData newConfig = plugin.getConfigManager().getConfigData();
-                    String msg = newConfig.getMessage("reload-success", "&aYapılandırma dosyaları başarıyla yenilendi.");
-                    sendOnServerThread(sender, msg);
-                    if (newConfig.isDebug()) {
-                        plugin.getLogger().info("Plugin configuration reloaded successfully by " + senderName);
+            // Disk parsing stays off tick threads on Bukkit/Paper and Folia.
+            try {
+                plugin.getPlatformScheduler().runAsync(() -> {
+                    String response;
+                    try {
+                        plugin.refreshDocumentation();
+                        plugin.getConfigManager().load();
+                        ConfigManager.ConfigData newConfig = plugin.getConfigManager().getConfigData();
+                        response = newConfig.getMessage(
+                                "reload-success",
+                                "&aYapılandırma dosyaları başarıyla yenilendi."
+                        );
+                        if (newConfig.isDebug()) {
+                            plugin.getLogger().info("Plugin configuration reloaded successfully by " + senderName);
+                        }
+                    } catch (Exception e) {
+                        plugin.getLogger().log(Level.SEVERE, "An error occurred while reloading the configurations:", e);
+                        response = config.getMessage(
+                                "reload-failure",
+                                "&cYapılandırma dosyaları yenilenirken bir hata oluştu!"
+                        );
+                    } finally {
+                        reloadInProgress.set(false);
                     }
-                } catch (Exception e) {
-                    // Load failed
-                    plugin.getLogger().log(Level.SEVERE, "An error occurred while reloading the configurations:", e);
-                    String msg = config.getMessage("reload-failure", "&cYapılandırma dosyaları yenilenirken bir hata oluştu!");
-                    sendOnServerThread(sender, msg);
-                } finally {
-                    reloadInProgress.set(false);
-                }
-            });
+
+                    sendOnOwningThread(sender, response);
+                });
+            } catch (RuntimeException exception) {
+                reloadInProgress.set(false);
+                plugin.getLogger().log(Level.SEVERE, "Could not schedule the configuration reload safely.", exception);
+                String message = config.getMessage(
+                        "reload-failure",
+                        "&cYapılandırma dosyaları yenilenirken bir hata oluştu!"
+                );
+                // onCommand already runs in the sender's valid command context.
+                sender.sendMessage(ColorUtils.colorize(message));
+            }
             return true;
         }
 
@@ -94,10 +110,18 @@ public class SplitCommand implements CommandExecutor, TabCompleter {
         return Collections.emptyList();
     }
 
-    private void sendOnServerThread(CommandSender sender, String message) {
-        plugin.getServer().getScheduler().runTask(
-                plugin,
-                () -> sender.sendMessage(ColorUtils.colorize(message))
-        );
+    private void sendOnOwningThread(CommandSender sender, String message) {
+        try {
+            boolean scheduled = plugin.getPlatformScheduler().runForSender(
+                    sender,
+                    () -> sender.sendMessage(ColorUtils.colorize(message))
+            );
+            if (!scheduled && plugin.getConfigManager().getConfigData().isDebug()) {
+                plugin.getLogger().fine("Reload response was dropped because its sender is no longer active.");
+            }
+        } catch (RuntimeException exception) {
+            // Never access an entity directly from this asynchronous completion path.
+            plugin.getLogger().log(Level.WARNING, "Could not deliver the reload response on its owning thread.", exception);
+        }
     }
 }

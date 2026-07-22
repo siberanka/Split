@@ -1,6 +1,6 @@
 # Split ── Bedrock/Java Dynamic Placeholder Plugin
 
-A lightweight, high-performance, and secure Minecraft plugin for Spigot/Paper servers. Split provides platform-aware values, switch mappings, expression evaluation, and highly configurable adaptive output based on the resolved character count of one or more PlaceholderAPI values.
+A lightweight, high-performance, and secure Minecraft plugin for Spigot, Paper, and Folia servers. Split provides platform-aware values, switch mappings, expression evaluation, and highly configurable adaptive output based on the resolved character count of one or more PlaceholderAPI values.
 
 ---
 
@@ -13,8 +13,9 @@ A lightweight, high-performance, and secure Minecraft plugin for Spigot/Paper se
 * **Boolean Expression Evaluator (`expression`):** Evaluates mathematical/relational expressions and returns a true or false value.
 * **Adaptive Output (`adaptive`):** Counts resolved Unicode characters and returns a bounded number, repeated spaces/symbols/text, or a custom template using direct or inverse scaling.
 * **PlaceholderAPI Integration:** Registers custom `%split_<key>%` placeholders and resolves nested placeholders (e.g. `%player_name%`) in the returned values.
-* **100% Thread-Safe & Atomic:** Custom configuration loading with atomic volatile swaps. Zero locks are held during placeholder requests.
-* **Asynchronous Reloading:** Config reloads happen in a background thread, preventing server lag spikes (disk I/O) on the main thread.
+* **Native Folia Scheduling:** Declares Folia support and routes asynchronous I/O, console replies, and player replies through Folia's async, global-region, and entity schedulers respectively while retaining Bukkit/Paper fallback behavior.
+* **Thread-Safe & Atomic:** Configuration reloads use atomic immutable snapshots; adaptive refreshes are bounded and same-key concurrent work is coalesced.
+* **Asynchronous Reloading:** Configuration disk I/O runs outside tick threads on Bukkit/Paper and Folia.
 * **Circular Reference Protection:** Safe evaluation using `ThreadLocal` recursion detectors. Prevents admin formatting mistakes from crashing the server with `StackOverflowError`.
 * **Safe Custom Expression Parser:** Uses a built-in, lightweight, and 100% secure tokenizer. No scripting engine (like JavaScript Nashorn) is utilized, completely eliminating code-injection exploits.
 * **Robust Configuration Reloading:** In the event of a YAML formatting syntax error, the plugin logs the details and maintains the current running configurations instead of crashing.
@@ -23,6 +24,12 @@ A lightweight, high-performance, and secure Minecraft plugin for Spigot/Paper se
 ### Commands & Permissions
 * `/split reload` ── Reloads the plugin configuration files (`config.yml`, `messages.yml`, `placeholders.yml`).
   * **Permission:** `split.admin`
+
+### Server Compatibility
+
+Split requires Java 21 and targets the Spigot 1.20.4 API. The same JAR supports Spigot/Paper-compatible servers and Folia. The build uses PlaceholderAPI 2.12.2; Folia installations must use a Folia-capable PlaceholderAPI release (2.11.7 or newer). On Folia, `folia-supported: true` is declared in `plugin.yml`; reload file I/O uses the Folia async scheduler, console-like responses use the global-region scheduler, and player responses use the player's entity scheduler so the task follows that player across regions. On Bukkit/Paper, the equivalent Bukkit scheduler paths are used.
+
+Plugin shutdown stops accepting new work and cancels owned async/global tasks. A response for a player who disconnected or whose entity scheduler retired is dropped safely. Placeholder evaluation remains synchronous in the caller's valid context because PlaceholderAPI expansions have synchronous return contracts; Split does not block one Folia region while waiting for another region.
 
 ### Configuration Files
 
@@ -182,8 +189,9 @@ Split creates a complete English/Turkish tutorial at `plugins/Split/wiki.yml`. E
 * **Mantıksal Karşılaştırma (`expression`):** Matematiksel/mantıksal formülleri çözümler ve sonucuna göre true veya false değerini döndürür.
 * **Adaptif Çıktı (`adaptive`):** Çözümlenmiş Unicode karakterlerini sayar; doğrudan veya ters ölçeklemeyle sınırlanmış bir sayı, gereken miktarda boşluk/sembol/metin ya da özel şablon döndürür.
 * **PlaceholderAPI Entegrasyonu:** Özel `%split_<anahtar>%` placeholder'ları tanımlayabilir ve bunların içindeki diğer placeholder'ları (örn. `%player_name%`) otomatik olarak çözümler.
-* **%100 Thread-Safe & Atomik:** Atomik geçişli ve uçucu (`volatile`) değişken yapılandırması sayesinde placeholder sorguları sırasında sunucu üzerinde sıfır kilitlenme (lock contention) oluşturur.
-* **Asenkron Yenileme:** Yapılandırma yenileme işlemleri arka planda asenkron olarak gerçekleşir. Bu sayede sunucu ana iş parçacığında (main thread) disk okuma kaynaklı FPS/TPS düşüşleri yaşanmaz.
+* **Doğal Folia Scheduler Desteği:** Folia desteğini bildirir; asenkron I/O, konsol cevapları ve oyuncu cevaplarını sırasıyla Folia async, global-region ve entity scheduler üzerinden yürütürken Bukkit/Paper geri dönüş yolunu korur.
+* **Thread-Safe & Atomik:** Yapılandırma reload'ları atomik ve değişmez snapshot kullanır; adaptif yenilemeler sınırlıdır ve aynı anahtardaki eşzamanlı işler tek hesapta birleştirilir.
+* **Asenkron Yenileme:** Yapılandırma disk I/O işlemleri Bukkit/Paper ve Folia tick thread'lerinin dışında çalışır.
 * **Kısır Döngü Koruması:** `ThreadLocal` tabanlı döngü algılayıcılar sayesinde yönetici hatalarından kaynaklanabilecek circular-reference (iç içe sonsuz döngü) durumlarında sunucunun `StackOverflowError` ile çökmesi veya lag oluşması engellenir.
 * **Güvenli Özel Formül Motoru:** JavaScript (`Nashorn`) gibi ağır, kullanımdan kaldırılmış ve uzaktan kod yürütme (`exploit`) riski taşıyan yapılar yerine; tamamen güvenli, yerleşik ve hafif bir metin parçalayıcı kullanılır.
 * **Güvenli Yeniden Yükleme:** Konfigürasyon dosyalarında bir YAML sözdizimi hatası olursa, plugin hatayı günlüğe kaydeder ve çalışmasını bozmadan eski kararlı yapılandırmayı bellekte tutmaya devam eder.
@@ -192,6 +200,12 @@ Split creates a complete English/Turkish tutorial at `plugins/Split/wiki.yml`. E
 ### Komutlar ve Yetkiler
 * `/split reload` ── Eklentinin yapılandırma dosyalarını (`config.yml`, `messages.yml`, `placeholders.yml`) yeniden yükler.
   * **Yetki:** `split.admin`
+
+### Sunucu Uyumluluğu
+
+Split Java 21 gerektirir ve Spigot 1.20.4 API'sini hedefler. Aynı JAR Spigot/Paper uyumlu sunucuları ve Folia'yı destekler. Build PlaceholderAPI 2.12.2 kullanır; Folia kurulumunda Folia destekli PlaceholderAPI sürümü (2.11.7 veya üzeri) kullanılmalıdır. Folia üzerinde `plugin.yml` içinde `folia-supported: true` bildirilir; reload dosya I/O işlemi Folia async scheduler, konsol benzeri cevaplar global-region scheduler, oyuncu cevaplarıysa bölgeler arasında oyuncuyu takip eden entity scheduler üzerinden çalışır. Bukkit/Paper üzerinde eşdeğer Bukkit scheduler yolları kullanılır.
+
+Plugin kapanırken yeni görev kabulü durdurulur ve sahip olunan async/global işler iptal edilir. Sunucudan ayrılmış veya entity scheduler'ı retired olmuş oyuncunun cevabı güvenli biçimde bırakılır. PlaceholderAPI expansion'larının senkron dönüş sözleşmesi nedeniyle placeholder hesaplaması çağıranın geçerli bağlamında senkron kalır; Split başka bir bölgeyi beklemek için Folia region thread'ini bloklamaz.
 
 ### Yapılandırma Dosyaları
 

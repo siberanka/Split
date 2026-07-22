@@ -4,6 +4,7 @@ import com.siberanka.split.command.SplitCommand;
 import com.siberanka.split.config.ConfigManager;
 import com.siberanka.split.documentation.DocumentationManager;
 import com.siberanka.split.listener.PlayerCacheListener;
+import com.siberanka.split.platform.PlatformScheduler;
 import com.siberanka.split.placeholder.SplitPlaceholderExpansion;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -14,12 +15,14 @@ public final class SplitPlugin extends JavaPlugin {
 
     private ConfigManager configManager;
     private DocumentationManager documentationManager;
+    private PlatformScheduler platformScheduler;
     private SplitPlaceholderExpansion placeholderExpansion;
     private boolean floodgatePresent;
     private boolean placeholderApiPresent;
 
     @Override
     public void onEnable() {
+        this.platformScheduler = new PlatformScheduler(this);
         this.documentationManager = new DocumentationManager(this);
         refreshDocumentation();
 
@@ -54,11 +57,17 @@ public final class SplitPlugin extends JavaPlugin {
             getLogger().warning("PlaceholderAPI not found! Custom placeholders (%split_<key>%) will not be registered.");
         }
 
-        getLogger().info("Split plugin version " + getDescription().getVersion() + " has been enabled.");
+        String platform = platformScheduler.isFolia() ? "Folia" : "Bukkit/Paper";
+        getLogger().info("Split plugin version " + getDescription().getVersion()
+                + " has been enabled with " + platform + " scheduler support.");
     }
 
     @Override
     public void onDisable() {
+        if (platformScheduler != null) {
+            platformScheduler.shutdown();
+        }
+
         // Unregister PAPI Expansion to prevent memory/classloader leaks during reloads
         if (placeholderExpansion != null) {
             try {
@@ -117,6 +126,10 @@ public final class SplitPlugin extends JavaPlugin {
 
     public ConfigManager getConfigManager() {
         return configManager;
+    }
+
+    public PlatformScheduler getPlatformScheduler() {
+        return platformScheduler;
     }
 
     /**
