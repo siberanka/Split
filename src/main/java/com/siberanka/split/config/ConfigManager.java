@@ -2,6 +2,7 @@ package com.siberanka.split.config;
 
 import com.siberanka.split.SplitPlugin;
 import com.siberanka.split.placeholder.model.AdaptivePlaceholder;
+import com.siberanka.split.placeholder.model.ParsePlaceholder;
 import com.siberanka.split.placeholder.model.SplitPlaceholder;
 import com.siberanka.split.placeholder.model.SimplePlaceholder;
 import com.siberanka.split.placeholder.model.SwitchPlaceholder;
@@ -103,7 +104,9 @@ public class ConfigManager {
 
                         // Infer type if missing
                         if (type.isEmpty()) {
-                            if (sec.contains("switch")) {
+                            if (sec.contains("parse")) {
+                                type = "parse";
+                            } else if (sec.contains("switch")) {
                                 type = "switch";
                             } else if (sec.contains("formule")) {
                                 type = "expression";
@@ -140,6 +143,9 @@ public class ConfigManager {
                             case "adaptive-space":
                             case "adaptive-spacing":
                                 placeholderObj = parseAdaptivePlaceholder(key, sec);
+                                break;
+                            case "parse":
+                                placeholderObj = parseParsePlaceholder(key, sec);
                                 break;
                             case "simple":
                                 String javaVal = sec.getString("java", "");
@@ -357,6 +363,70 @@ public class ConfigManager {
         );
     }
 
+    static ParsePlaceholder parseParsePlaceholder(String key, ConfigurationSection section) {
+        String context = "Parse placeholder '" + key + "'";
+        String selector = readString(section, "", "parse");
+        String javaValue = readString(section, "", "java");
+        String bedrockValue = readString(section, "", "bedrock");
+        validateConfiguredText(context + " parse selector", selector, MAX_CONFIGURED_TEXT_LENGTH, false);
+        validateConfiguredText(context + " Java value", javaValue, MAX_CONFIGURED_TEXT_LENGTH, true);
+        validateConfiguredText(context + " Bedrock value", bedrockValue, MAX_CONFIGURED_TEXT_LENGTH, true);
+
+        boolean allowOffline = readBoolean(
+                section,
+                true,
+                "parse-options.allow-offline",
+                "allow-offline"
+        );
+
+        int cooldownMilliseconds = readInteger(
+                section,
+                250,
+                "parse-options.cooldown-milliseconds",
+                "cooldown-milliseconds",
+                "cooldown-ms",
+                "cooldown"
+        );
+        if (cooldownMilliseconds < MIN_COOLDOWN_MILLISECONDS
+                || cooldownMilliseconds > MAX_COOLDOWN_MILLISECONDS) {
+            throw new IllegalArgumentException(context + " cooldown must be between "
+                    + MIN_COOLDOWN_MILLISECONDS + " and " + MAX_COOLDOWN_MILLISECONDS + " milliseconds");
+        }
+
+        int maxCacheEntries = readInteger(
+                section,
+                1_024,
+                "parse-options.max-cache-entries",
+                "max-cache-entries",
+                "cache-size"
+        );
+        if (maxCacheEntries < 1 || maxCacheEntries > MAX_CACHE_ENTRIES) {
+            throw new IllegalArgumentException(context + " max cache entries must be between 1 and "
+                    + MAX_CACHE_ENTRIES);
+        }
+
+        int maxOutputLength = readInteger(
+                section,
+                4_096,
+                "parse-options.max-output-length",
+                "max-output-length"
+        );
+        if (maxOutputLength < 1 || maxOutputLength > MAX_OUTPUT_LENGTH) {
+            throw new IllegalArgumentException(context + " output length limit must be between 1 and "
+                    + MAX_OUTPUT_LENGTH);
+        }
+
+        return new ParsePlaceholder(
+                selector,
+                javaValue,
+                bedrockValue,
+                allowOffline,
+                cooldownMilliseconds,
+                maxCacheEntries,
+                maxOutputLength
+        );
+    }
+
     private static List<String> readStringList(ConfigurationSection section, String path) {
         if (!section.contains(path)) {
             return Collections.emptyList();
@@ -531,6 +601,8 @@ public class ConfigManager {
             for (SplitPlaceholder placeholder : placeholders.values()) {
                 if (placeholder instanceof AdaptivePlaceholder adaptivePlaceholder) {
                     adaptivePlaceholder.invalidatePlayer(playerId);
+                } else if (placeholder instanceof ParsePlaceholder parsePlaceholder) {
+                    parsePlaceholder.invalidatePlayer(playerId);
                 }
             }
         }

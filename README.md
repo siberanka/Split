@@ -1,20 +1,21 @@
 # Split ── Bedrock/Java Dynamic Placeholder Plugin
 
-A lightweight, high-performance, and secure Minecraft plugin for Spigot, Paper, and Folia servers. Split provides platform-aware values, switch mappings, expression evaluation, and highly configurable adaptive output based on the resolved character count of one or more PlaceholderAPI values.
+A lightweight, high-performance, and secure Minecraft plugin for Spigot, Paper, and Folia servers. Split provides platform-aware values, target-player parsing, switch mappings, expression evaluation, and highly configurable adaptive output.
 
 ---
 
 ## 🇬🇧 English Documentation
 
 ### Features
-* **Polymorphic Placeholders:** Supports `simple`, `switch`, `expression`, and `adaptive` types.
+* **Polymorphic Placeholders:** Supports `simple`, `parse`, `switch`, `expression`, and `adaptive` types.
 * **Dual-Platform Handling (`simple`):** Serves different template values for Bedrock and Java clients.
+* **Target-Player Parsing (`parse`):** Resolves a player name from one placeholder, then evaluates a Java/Bedrock template using that exact online or known offline player as the PlaceholderAPI context.
 * **Case-Switch Mapping (`switch`):** Resolves a target placeholder and matches it against custom case keys with a fallback `default` case.
 * **Boolean Expression Evaluator (`expression`):** Evaluates mathematical/relational expressions and returns a true or false value.
 * **Adaptive Output (`adaptive`):** Counts resolved Unicode characters and returns a bounded number, repeated spaces/symbols/text, or a custom template using direct, reverse, or linear map scaling—including negative numeric results.
 * **PlaceholderAPI Integration:** Registers custom `%split_<key>%` placeholders and resolves nested placeholders (e.g. `%player_name%`) in the returned values.
 * **Native Folia Scheduling:** Declares Folia support and routes asynchronous I/O, console replies, and player replies through Folia's async, global-region, and entity schedulers respectively while retaining Bukkit/Paper fallback behavior.
-* **Thread-Safe & Atomic:** Configuration reloads use atomic immutable snapshots; adaptive refreshes are bounded and same-key concurrent work is coalesced.
+* **Thread-Safe & Atomic:** Configuration reloads use atomic immutable snapshots; adaptive and parse refreshes are bounded and same-key concurrent work is coalesced.
 * **Asynchronous Reloading:** Configuration disk I/O runs outside tick threads on Bukkit/Paper and Folia.
 * **Circular Reference Protection:** Safe evaluation using `ThreadLocal` recursion detectors. Prevents admin formatting mistakes from crashing the server with `StackOverflowError`.
 * **Safe Custom Expression Parser:** Uses a built-in, lightweight, and 100% secure tokenizer. No scripting engine (like JavaScript Nashorn) is utilized, completely eliminating code-injection exploits.
@@ -29,7 +30,7 @@ A lightweight, high-performance, and secure Minecraft plugin for Spigot, Paper, 
 
 Split requires Java 21 and targets the Spigot 1.20.4 API. The same JAR supports Spigot/Paper-compatible servers and Folia. The build uses PlaceholderAPI 2.12.2; Folia installations must use a Folia-capable PlaceholderAPI release (2.11.7 or newer). On Folia, `folia-supported: true` is declared in `plugin.yml`; reload file I/O uses the Folia async scheduler, console-like responses use the global-region scheduler, and player responses use the player's entity scheduler so the task follows that player across regions. On Bukkit/Paper, the equivalent Bukkit scheduler paths are used.
 
-Plugin shutdown stops accepting new work and cancels owned async/global tasks. A response for a player who disconnected or whose entity scheduler retired is dropped safely. Placeholder evaluation remains synchronous in the caller's valid context because PlaceholderAPI expansions have synchronous return contracts; Split does not block one Folia region while waiting for another region.
+Plugin shutdown stops accepting new work and cancels owned async/global tasks. A response for a player who disconnected or whose entity scheduler retired is dropped safely. Placeholder evaluation remains synchronous in the caller's valid context because PlaceholderAPI expansions have synchronous return contracts. A `parse` result targeting another Folia region is refreshed non-blockingly on the target player's entity scheduler and served from its bounded cache; Split never blocks one Folia region while waiting for another.
 
 ### Configuration Files
 
@@ -80,7 +81,19 @@ example_expression:
   true: "Ping is stable"
   false: "Ping is not stable"
 
-# 4. Adaptive Output Type
+# 4. Target-Player Parse Type
+example_target:
+  type: "parse"
+  parse: "%example_player%"
+  java: "%example_java%"
+  bedrock: "%example_bedrock%"
+  parse-options:
+    allow-offline: true
+    cooldown-milliseconds: 250
+    max-cache-entries: 1024
+    max-output-length: 4096
+
+# 5. Adaptive Output Type
 adaptive_spacing:
   type: "adaptive"
   source:
@@ -107,6 +120,25 @@ adaptive_spacing:
     template: "{count}"
     max-length: 8192
 ```
+
+### Parse Placeholder Reference
+
+Use `%split_example_target%` for the parse example. Split first resolves `parse` with the requesting player, trims and validates the result, then prefers an exact online-player match. When `allow-offline` is enabled, a known player who has joined the server before is also accepted. Unknown profiles, malformed names, and failed resolutions return an empty string.
+
+After finding the target, Split checks that target through Floodgate and resolves either `java` or `bedrock` exactly once with the target player as PlaceholderAPI context. The produced text is returned literally instead of being parsed again, preventing placeholder-output injection and accidental recursive chains. `%split_*%` references deliberately configured inside `java`/`bedrock` still pass through Split's existing recursion/depth guards during that one parse.
+
+| Setting | Values / behavior |
+| --- | --- |
+| `type` | Must be `parse`; when `type` is omitted, the presence of `parse` selects this mode. |
+| `parse` | Required non-empty selector text. It may contain placeholders and must resolve to an exact online or known offline player name; resolved names are limited to 64 Unicode code points and safe player-name characters. |
+| `java` | Template resolved once using the target Java player. |
+| `bedrock` | Template resolved once using the target Bedrock player. Without Floodgate, targets use `java`. |
+| `parse-options.allow-offline` | Allows exact, previously known offline targets; default `true`. Set to `false` to require an online target. |
+| `parse-options.cooldown-milliseconds` | Per-target refresh interval, `100..60000`; default `250`. |
+| `parse-options.max-cache-entries` | Per-parse-placeholder target/result and positive/negative lookup bound, `1..4096`; default `1024`. Once the offline lookup ceiling is reached, new names fail closed until reload. |
+| `parse-options.max-output-length` | Final output limit in Unicode code points, `1..16384`; default `4096`. |
+
+Known offline targets are evaluated synchronously as `OfflinePlayer` contexts. Whether a third-party placeholder can return offline data depends on that PlaceholderAPI expansion; unsupported values usually remain empty or use that expansion's fallback. Online targets are immediate on Spigot/Paper's primary thread. If invoked outside that thread, Split schedules safely and returns the last cached result. On Folia, online-target evaluation uses the target player's entity scheduler, so the first uncached request may be empty for one scheduler cycle. Cooldown hits never return a status message.
 
 ### Adaptive Placeholder Reference
 
@@ -198,14 +230,15 @@ Split creates a complete English/Turkish tutorial at `plugins/Split/wiki.yml`. E
 ## 🇹🇷 Türkçe Dokümantasyon
 
 ### Özellikler
-* **Polimorfik Placeholder'lar:** Dinamik çözümleme için `simple`, `switch`, `expression` ve `adaptive` tiplerini destekler.
+* **Polimorfik Placeholder'lar:** Dinamik çözümleme için `simple`, `parse`, `switch`, `expression` ve `adaptive` tiplerini destekler.
 * **Platform Ayrımı (`simple`):** Bedrock ve Java istemcileri için farklı şablon çıktıları sağlar.
+* **Hedef Oyuncu Ayrıştırma (`parse`):** Bir placeholder'dan oyuncu adını çözümler, ardından Java/Bedrock şablonunu tam eşleşen çevrimiçi veya bilinen çevrimdışı hedef oyuncu bağlamında çalıştırır.
 * **Eşleşme Eşitleme (`switch`):** Belirtilen hedef placeholder değerini çözümler ve tanımlı durumlarla (case) eşleştirir; eşleşme yoksa `default` değerini döndürür.
 * **Mantıksal Karşılaştırma (`expression`):** Matematiksel/mantıksal formülleri çözümler ve sonucuna göre true veya false değerini döndürür.
 * **Adaptif Çıktı (`adaptive`):** Çözümlenmiş Unicode karakterlerini sayar; direct, reverse veya doğrusal map ölçeklemesiyle negatif olabilen sayı, gereken miktarda boşluk/sembol/metin ya da özel şablon döndürür.
 * **PlaceholderAPI Entegrasyonu:** Özel `%split_<anahtar>%` placeholder'ları tanımlayabilir ve bunların içindeki diğer placeholder'ları (örn. `%player_name%`) otomatik olarak çözümler.
 * **Doğal Folia Scheduler Desteği:** Folia desteğini bildirir; asenkron I/O, konsol cevapları ve oyuncu cevaplarını sırasıyla Folia async, global-region ve entity scheduler üzerinden yürütürken Bukkit/Paper geri dönüş yolunu korur.
-* **Thread-Safe & Atomik:** Yapılandırma reload'ları atomik ve değişmez snapshot kullanır; adaptif yenilemeler sınırlıdır ve aynı anahtardaki eşzamanlı işler tek hesapta birleştirilir.
+* **Thread-Safe & Atomik:** Yapılandırma reload'ları atomik ve değişmez snapshot kullanır; adaptif ve parse yenilemeleri sınırlıdır ve aynı anahtardaki eşzamanlı işler tek hesapta birleştirilir.
 * **Asenkron Yenileme:** Yapılandırma disk I/O işlemleri Bukkit/Paper ve Folia tick thread'lerinin dışında çalışır.
 * **Kısır Döngü Koruması:** `ThreadLocal` tabanlı döngü algılayıcılar sayesinde yönetici hatalarından kaynaklanabilecek circular-reference (iç içe sonsuz döngü) durumlarında sunucunun `StackOverflowError` ile çökmesi veya lag oluşması engellenir.
 * **Güvenli Özel Formül Motoru:** JavaScript (`Nashorn`) gibi ağır, kullanımdan kaldırılmış ve uzaktan kod yürütme (`exploit`) riski taşıyan yapılar yerine; tamamen güvenli, yerleşik ve hafif bir metin parçalayıcı kullanılır.
@@ -220,7 +253,7 @@ Split creates a complete English/Turkish tutorial at `plugins/Split/wiki.yml`. E
 
 Split Java 21 gerektirir ve Spigot 1.20.4 API'sini hedefler. Aynı JAR Spigot/Paper uyumlu sunucuları ve Folia'yı destekler. Build PlaceholderAPI 2.12.2 kullanır; Folia kurulumunda Folia destekli PlaceholderAPI sürümü (2.11.7 veya üzeri) kullanılmalıdır. Folia üzerinde `plugin.yml` içinde `folia-supported: true` bildirilir; reload dosya I/O işlemi Folia async scheduler, konsol benzeri cevaplar global-region scheduler, oyuncu cevaplarıysa bölgeler arasında oyuncuyu takip eden entity scheduler üzerinden çalışır. Bukkit/Paper üzerinde eşdeğer Bukkit scheduler yolları kullanılır.
 
-Plugin kapanırken yeni görev kabulü durdurulur ve sahip olunan async/global işler iptal edilir. Sunucudan ayrılmış veya entity scheduler'ı retired olmuş oyuncunun cevabı güvenli biçimde bırakılır. PlaceholderAPI expansion'larının senkron dönüş sözleşmesi nedeniyle placeholder hesaplaması çağıranın geçerli bağlamında senkron kalır; Split başka bir bölgeyi beklemek için Folia region thread'ini bloklamaz.
+Plugin kapanırken yeni görev kabulü durdurulur ve sahip olunan async/global işler iptal edilir. Sunucudan ayrılmış veya entity scheduler'ı retired olmuş oyuncunun cevabı güvenli biçimde bırakılır. PlaceholderAPI expansion'larının senkron dönüş sözleşmesi nedeniyle placeholder hesaplaması çağıranın geçerli bağlamında senkron kalır. Başka bir Folia bölgesindeki oyuncuyu hedefleyen `parse` sonucu, hedef oyuncunun entity scheduler'ında bloklamadan yenilenir ve sınırlı cache üzerinden sunulur; Split başka bir region thread'ini beklemez.
 
 ### Yapılandırma Dosyaları
 
@@ -271,7 +304,19 @@ example_expression:
   true: "Ping is stable"
   false: "Ping is not stable"
 
-# 4. Adaptif Çıktı Tipi
+# 4. Hedef Oyuncu Parse Tipi
+example_target:
+  type: "parse"
+  parse: "%example_player%"
+  java: "%example_java%"
+  bedrock: "%example_bedrock%"
+  parse-options:
+    allow-offline: true
+    cooldown-milliseconds: 250
+    max-cache-entries: 1024
+    max-output-length: 4096
+
+# 5. Adaptif Çıktı Tipi
 adaptive_spacing:
   type: "adaptive"
   source:
@@ -298,6 +343,25 @@ adaptive_spacing:
     template: "{count}"
     max-length: 8192
 ```
+
+### Parse Placeholder Ayarları
+
+Parse örneği `%split_example_target%` olarak kullanılır. Split önce `parse` alanını placeholder'ı isteyen oyuncu bağlamında çözümler, sonucu kırpıp doğrular ve öncelikle tam eşleşen çevrimiçi oyuncuyu arar. `allow-offline` açıksa sunucuya daha önce katılmış bilinen çevrimdışı oyuncular da kabul edilir. Bilinmeyen profil, bozuk ad veya çözümleme hatası boş metin döndürür.
+
+Hedef bulunduktan sonra platformu Floodgate ile kontrol edilir ve `java` ya da `bedrock` şablonu hedef oyuncu bağlamında yalnızca bir kez PlaceholderAPI'den geçirilir. Üretilen çıktı yeniden parse edilmeden literal döner; böylece placeholder çıktısı enjeksiyonu ve istemsiz recursive zincir engellenir. `java`/`bedrock` içine yönetici tarafından bilerek yazılan `%split_*%` referansları, bu tek parse sırasında mevcut recursion/derinlik korumasından geçer.
+
+| Ayar | Değer / davranış |
+| --- | --- |
+| `type` | `parse` olmalıdır; `type` yazılmazsa `parse` alanının bulunması bu modu seçer. |
+| `parse` | Zorunlu ve boş olmayan seçici metindir. Placeholder içerebilir ve tam çevrimiçi veya bilinen çevrimdışı oyuncu adına çözülmelidir; ad en fazla 64 Unicode code point ve güvenli oyuncu-adı karakterleri içerebilir. |
+| `java` | Hedef Java oyuncusu bağlamında bir kez çözümlenen şablon. |
+| `bedrock` | Hedef Bedrock oyuncusu bağlamında bir kez çözümlenen şablon. Floodgate yoksa `java` kullanılır. |
+| `parse-options.allow-offline` | Tam eşleşen, sunucunun daha önce gördüğü çevrimdışı hedeflere izin verir; varsayılan `true`. Yalnızca çevrimiçi hedef için `false` yapılır. |
+| `parse-options.cooldown-milliseconds` | Hedef başına yenileme aralığı `100..60000`; varsayılan `250`. |
+| `parse-options.max-cache-entries` | Her parse placeholder için hedef/sonuç ve olumlu/olumsuz arama sınırı `1..4096`; varsayılan `1024`. Çevrimdışı arama tavanı dolduğunda yeni adlar reload'a kadar güvenli biçimde reddedilir. |
+| `parse-options.max-output-length` | Unicode code point cinsinden nihai çıktı sınırı `1..16384`; varsayılan `4096`. |
+
+Bilinen çevrimdışı hedefler `OfflinePlayer` bağlamında senkron çözülür. Üçüncü taraf bir placeholder'ın çevrimdışı veri döndürüp döndürememesi ilgili PlaceholderAPI expansion'ına bağlıdır; desteklenmeyen değer genellikle boş veya expansion'ın fallback sonucudur. Çevrimiçi hedef Spigot/Paper ana thread'inde anında üretilir. Ana thread dışında scheduler'a taşınır. Folia'da çevrimiçi hedef kendi entity scheduler'ında hesaplanır; ilk cache'siz istek bir scheduler döngüsü boyunca boş olabilir. Cooldown sırasında durum mesajı dönmez.
 
 ### Adaptif Placeholder Ayarları
 

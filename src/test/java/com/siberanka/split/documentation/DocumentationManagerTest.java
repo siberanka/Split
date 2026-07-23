@@ -82,7 +82,9 @@ class DocumentationManagerTest {
         assertTrue(content.lines().allMatch(line -> line.startsWith("#")));
         assertTrue(content.contains("ENGLISH GUIDE"));
         assertTrue(content.contains("TÜRKÇE REHBER"));
-        assertTrue(content.contains("Split 1.4.1"));
+        assertTrue(content.contains("`parse` Placeholder — Target Player Context"));
+        assertTrue(content.contains("`parse` Placeholder — Hedef Oyuncu Bağlamı"));
+        assertTrue(content.contains("Split 1.5.0"));
     }
 
     private static boolean sync(String content, Path destination) throws Exception {

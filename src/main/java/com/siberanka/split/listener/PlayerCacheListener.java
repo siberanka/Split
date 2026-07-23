@@ -6,7 +6,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-/** Clears bounded adaptive cache entries as soon as a player session ends. */
+/** Clears bounded adaptive and target-parse cache entries as soon as a player session ends. */
 public final class PlayerCacheListener implements Listener {
 
     private final SplitPlugin plugin;

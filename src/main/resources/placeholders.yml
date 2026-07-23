@@ -4,7 +4,7 @@
 #
 # [ENGLISH WIKI]
 # This file defines dynamic placeholders resolving under %split_<key>%.
-# Four placeholder types are supported:
+# Five placeholder types are supported:
 #
 # 1. simple:
 #    Resolves different values depending on the player platform (Java or Bedrock).
@@ -36,7 +36,18 @@
 #      true: "Stable Ping"
 #      false: "Unstable Ping"
 #
-# 4. adaptive:
+# 4. parse:
+#    Resolves `parse` with the requesting player, finds that exact online or known
+#    offline player, then resolves Java/Bedrock using the target as context.
+#    Unknown targets return empty and lookup attempts are strictly bounded.
+#    Example:
+#    example_target:
+#      type: "parse"
+#      parse: "%example_player%"
+#      java: "%example_java%"
+#      bedrock: "%example_bedrock%"
+#
+# 5. adaptive:
 #    Counts Unicode characters in a resolved source and calculates a bounded value.
 #    DIRECT: base + (length * ratio), REVERSE: base - (length * ratio).
 #    MAP: linearly maps source-minimum..source-maximum to minimum..maximum.
@@ -49,7 +60,7 @@
 #
 # [TÜRKÇE VİKİ]
 # Bu dosya %split_<anahtar>% altında çözümlenecek dinamik placeholder'ları tanımlar.
-# Dört farklı tip desteklenmektedir:
+# Beş farklı tip desteklenmektedir:
 #
 # 1. simple:
 #    Oyuncu platformuna göre (Java veya Bedrock) farklı çıktılar döndürür.
@@ -81,7 +92,18 @@
 #      true: "Stabil Ping"
 #      false: "Stabil Olmayan Ping"
 #
-# 4. adaptive:
+# 4. parse:
+#    `parse` alanını isteyen oyuncuyla çözümler, tam eşleşen çevrimiçi veya bilinen
+#    çevrimdışı oyuncuyu bulur ve Java/Bedrock değerini hedef bağlamında çözümler.
+#    Bilinmeyen hedef boş döner ve arama denemeleri kesin olarak sınırlıdır.
+#    Örnek:
+#    example_target:
+#      type: "parse"
+#      parse: "%example_player%"
+#      java: "%example_java%"
+#      bedrock: "%example_bedrock%"
+#
+# 5. adaptive:
 #    Çözümlenmiş kaynağın Unicode karakterlerini sayar ve sınırlı bir değer hesaplar.
 #    DIRECT: taban + (uzunluk * oran), REVERSE: taban - (uzunluk * oran).
 #    MAP: source-minimum..source-maximum aralığını minimum..maximum aralığına eşler.
@@ -109,6 +131,17 @@ example_expression:
   formule: "%player_ping% >> 60 && %player_ping% << 120"
   true: "Ping is stable"
   false: "Ping is not stable"
+
+example_target:
+  type: "parse"
+  parse: "%example_player%"
+  java: "%example_java%"
+  bedrock: "%example_bedrock%"
+  parse-options:
+    allow-offline: true          # Default true / Varsayılan true
+    cooldown-milliseconds: 250  # Safe range / Güvenli aralık: 100..60000
+    max-cache-entries: 1024     # Safe range / Güvenli aralık: 1..4096
+    max-output-length: 4096     # Safe range / Güvenli aralık: 1..16384
 
 # %split_adaptive_spacing%
 # A 32-space area shrinks by one space for every resolved source character.

@@ -76,7 +76,7 @@ public class SplitPlaceholderExpansion extends PlaceholderExpansion {
         }
 
         try {
-            // Resolve placeholder based on its polymorphic type rules (simple, switch, expression)
+            // Resolve the configured polymorphic placeholder type.
             String template = placeholder.resolve(plugin, player);
 
             if (template == null || template.isEmpty()) {

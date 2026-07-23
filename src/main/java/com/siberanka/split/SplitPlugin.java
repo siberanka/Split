@@ -38,7 +38,7 @@ public final class SplitPlugin extends JavaPlugin {
         // Check for integrations
         checkIntegrations();
 
-        // Remove per-player adaptive cache entries immediately when sessions end.
+        // Remove per-player adaptive/parse cache entries immediately when sessions end.
         getServer().getPluginManager().registerEvents(new PlayerCacheListener(this), this);
 
         // Register Command

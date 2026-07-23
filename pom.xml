@@ -6,11 +6,11 @@
 
     <groupId>com.siberanka.split</groupId>
     <artifactId>Split</artifactId>
-    <version>1.4.1</version>
+    <version>1.5.0</version>
     <packaging>jar</packaging>
 
     <name>Split</name>
-    <description>Dynamic platform, expression, switch, and adaptive output placeholders for Minecraft servers.</description>
+    <description>Dynamic platform, target-player parse, expression, switch, and adaptive output placeholders for Minecraft servers.</description>
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

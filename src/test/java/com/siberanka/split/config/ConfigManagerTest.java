@@ -1,6 +1,7 @@
 package com.siberanka.split.config;
 
 import com.siberanka.split.placeholder.model.AdaptivePlaceholder;
+import com.siberanka.split.placeholder.model.ParsePlaceholder;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Test;
@@ -11,13 +12,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConfigManagerTest {
 
     @Test
-    void parsesBundledAdaptiveExample() throws Exception {
+    void parsesBundledAdaptiveAndTargetExamples() throws Exception {
         InputStream stream = getClass().getResourceAsStream("/placeholders.yml");
         assertNotNull(stream);
 
@@ -35,6 +38,12 @@ class ConfigManagerTest {
         assertEquals(com.siberanka.split.util.AdaptiveSpacingCalculator.Mode.MAP, mapped.getMode());
         assertEquals(100, mapped.getMinimum());
         assertEquals(-100, mapped.getMaximum());
+
+        ConfigurationSection targetSection = yaml.getConfigurationSection("example_target");
+        assertNotNull(targetSection);
+        ParsePlaceholder target = ConfigManager.parseParsePlaceholder("example_target", targetSection);
+        assertEquals("%example_player%", target.getSelector());
+        assertTrue(target.isAllowOffline());
     }
 
     @Test
@@ -225,5 +234,70 @@ class ConfigManagerTest {
                 IllegalArgumentException.class,
                 () -> ConfigManager.parseAdaptivePlaceholder("unsafe-cooldown", yaml)
         );
+    }
+
+    @Test
+    void parsesTargetPlayerPlaceholderConfiguration() throws Exception {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.loadFromString("""
+                type: parse
+                parse: "%example_player%"
+                java: "%example_java%"
+                bedrock: "%example_bedrock%"
+                parse-options:
+                  allow-offline: true
+                  cooldown-milliseconds: 300
+                  max-cache-entries: 64
+                  max-output-length: 2048
+                """);
+
+        ParsePlaceholder placeholder = ConfigManager.parseParsePlaceholder("target", yaml);
+        assertEquals("%example_player%", placeholder.getSelector());
+        assertEquals("%example_java%", placeholder.getJavaValue());
+        assertEquals("%example_bedrock%", placeholder.getBedrockValue());
+        assertTrue(placeholder.isAllowOffline());
+        assertEquals(300L, placeholder.getCooldownMilliseconds());
+        assertEquals(64, placeholder.getMaximumCacheEntries());
+        assertEquals(2048, placeholder.getMaximumOutputLength());
+    }
+
+    @Test
+    void rejectsEmptyParseSelectorAndUnsafeParseLimits() throws Exception {
+        YamlConfiguration emptySelector = new YamlConfiguration();
+        emptySelector.loadFromString("""
+                type: parse
+                parse: ""
+                java: "%player_name%"
+                bedrock: "%player_name%"
+                """);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ConfigManager.parseParsePlaceholder("empty-selector", emptySelector)
+        );
+
+        YamlConfiguration unsafeCache = new YamlConfiguration();
+        unsafeCache.loadFromString("""
+                type: parse
+                parse: "%example_player%"
+                java: "%player_name%"
+                bedrock: "%player_name%"
+                parse-options:
+                  max-cache-entries: 4097
+                """);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ConfigManager.parseParsePlaceholder("unsafe-cache", unsafeCache)
+        );
+
+        YamlConfiguration onlineOnly = new YamlConfiguration();
+        onlineOnly.loadFromString("""
+                type: parse
+                parse: "%example_player%"
+                java: "%player_name%"
+                bedrock: "%player_name%"
+                parse-options:
+                  allow-offline: false
+                """);
+        assertFalse(ConfigManager.parseParsePlaceholder("online-only", onlineOnly).isAllowOffline());
     }
 }

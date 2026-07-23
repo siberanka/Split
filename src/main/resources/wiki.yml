@@ -26,21 +26,22 @@
 #
 # `<key>` is a top-level key from `placeholders.yml`. For example, the configuration key `server_label` is requested as `%split_server_label%`.
 #
-# Split supports four placeholder types:
+# Split supports five placeholder types:
 #
 # 1. `simple` — selects a Java or Bedrock value.
 # 2. `switch` — maps a resolved source value to a configured case.
 # 3. `expression` — evaluates a safe boolean or relational formula.
 # 4. `adaptive` — measures resolved text and produces a calculated number, repeated output, or formatted template.
+# 5. `parse` — resolves an online or known offline player's placeholders using that player as context.
 #
-# Placeholder keys and type names are case-insensitive. Returned text from `simple`, `switch`, and `expression` may contain other PlaceholderAPI placeholders. Split resolves those nested placeholders before returning the final value. Adaptive sources are refreshed after their configured cooldown, but adaptive results are deliberately returned literally for safety.
+# Placeholder keys and type names are case-insensitive. Returned text from `simple`, `switch`, and `expression` may contain other PlaceholderAPI placeholders. Split resolves those nested placeholders before returning the final value. Parse selectors and selected target templates are each parsed exactly once in their respective player contexts, then returned literally. Adaptive sources are refreshed after their configured cooldown, but adaptive results are deliberately returned literally for safety.
 #
 # ## 2. Requirements and Installation
 #
 # - Java 21.
 # - A Spigot/Paper-compatible server or Folia. The build targets Spigot API 1.20.4.
 # - PlaceholderAPI is required to register and use `%split_*%` placeholders. Split builds against 2.12.2; Folia requires a Folia-capable PlaceholderAPI release (2.11.7 or newer).
-# - Floodgate is optional. Without Floodgate, online players resolve as Java players in `simple` placeholders.
+# - Floodgate is optional. Without Floodgate, online players resolve as Java players in `simple` and `parse` placeholders.
 #
 # Installation:
 #
@@ -62,6 +63,7 @@
 # - On Bukkit/Paper, Split uses the equivalent classic Bukkit scheduler paths.
 # - Shutdown rejects new scheduled work and cancels owned async/global tasks. A retired player response is safely discarded.
 # - PlaceholderAPI requires a synchronous result. Split therefore evaluates placeholders in the caller's valid context and never blocks one Folia region waiting for another.
+# - Cross-region `parse` target work runs non-blockingly on the target player's entity scheduler. The first uncached request may be empty for one scheduler cycle; subsequent calls use the bounded result cache.
 #
 # ## 3. Files and Their Authority
 #
@@ -156,14 +158,15 @@
 # %split_welcome_text%
 # ```
 #
-# Canonical type names are `simple`, `switch`, `expression`, and `adaptive`. Adaptive also accepts `adaptive-space`, `adaptive_spacing`, and `adaptive-spacing` as compatibility aliases. Unknown explicit types are rejected so a typo cannot silently activate the wrong behavior.
+# Canonical type names are `simple`, `parse`, `switch`, `expression`, and `adaptive`. Adaptive also accepts `adaptive-space`, `adaptive_spacing`, and `adaptive-spacing` as compatibility aliases. Unknown explicit types are rejected so a typo cannot silently activate the wrong behavior.
 #
 # When `type` is omitted, Split infers it in this order:
 #
-# 1. A `switch` key selects `switch`.
-# 2. A `formule` key selects `expression`.
-# 3. A `source` key or `calculation` section selects `adaptive`.
-# 4. Otherwise, `simple` is selected.
+# 1. A `parse` key selects `parse`.
+# 2. A `switch` key selects `switch`.
+# 3. A `formule` key selects `expression`.
+# 4. A `source` key or `calculation` section selects `adaptive`.
+# 5. Otherwise, `simple` is selected.
 #
 # ## 8. `simple` Placeholder
 #
@@ -547,7 +550,107 @@
 #
 # Each adaptive source entry is parsed once per refresh. Its rendered result is not passed through PlaceholderAPI again. This means a repeated value such as `%`, `%player_name%`, or another percent-containing symbol remains literal. It prevents accidental recursive expansion and workload multiplication. Use `{source}` in template mode when the already-resolved, joined source should appear in the output.
 #
-# ## 12. Nested Placeholders and Safety Behavior
+# ## 12. `parse` Placeholder — Target Player Context
+#
+# A parse placeholder obtains a player name from one placeholder and then evaluates another template as that exact online or known offline player. For example, if `%example_player%` returns `Alex`, both `%example_java%` and `%example_bedrock%` are evaluated with Alex—not with the player who requested `%split_example_target%`.
+#
+# ```yaml
+# example_target:
+#   type: "parse"
+#   parse: "%example_player%"
+#   java: "%example_java%"
+#   bedrock: "%example_bedrock%"
+#   parse-options:
+#     allow-offline: true
+#     cooldown-milliseconds: 250
+#     max-cache-entries: 1024
+#     max-output-length: 4096
+# ```
+#
+# Use it as:
+#
+# ```text
+# %split_example_target%
+# ```
+#
+# ### Processing order
+#
+# 1. Resolve the configured `parse` selector once with the requesting player.
+# 2. Trim the result and validate it as a target name of at most 64 Unicode code points containing only letters, digits, spaces, `_`, `-`, or `.`.
+# 3. Prefer an exact online-player lookup.
+# 4. When `allow-offline` is enabled, accept an exact known profile only if that player has joined the server before. Unknown profiles fail closed to empty.
+# 5. Check the target UUID with Floodgate; without Floodgate the target is treated as Java.
+# 6. Select `java` or `bedrock` and resolve it exactly once with the target player as PlaceholderAPI context.
+# 7. Limit the resolved output, cache it by target UUID, and return it literally without another PlaceholderAPI pass.
+#
+# ### Every setting
+#
+# #### `type`
+#
+# - Canonical value: `parse`.
+# - Optional when a top-level `parse` key is present because type inference selects parse first.
+#
+# #### `parse`
+#
+# - Required non-empty selector text.
+# - May contain plain text, one placeholder, or multiple adjacent placeholders.
+# - Resolved with the player requesting `%split_<key>%`.
+# - Must produce the exact name of an online player or, when enabled, a known offline player.
+# - Runtime target-name limit: 64 Unicode code points; only letters, digits, spaces, `_`, `-`, and `.` are accepted.
+#
+# #### `java`
+#
+# - Template selected when the exact target is a Java player or Floodgate is unavailable.
+# - Parsed once using the target player.
+# - Default: empty text.
+#
+# #### `bedrock`
+#
+# - Template selected when Floodgate verifies the exact target as Bedrock.
+# - Parsed once using the target player.
+# - Default: empty text.
+#
+# #### `parse-options.allow-offline`
+#
+# - Boolean; default: `true`.
+# - `true`: exact profiles that have joined the server before may be used while offline.
+# - `false`: only an exact currently-online target is accepted.
+# - Flat alias: `allow-offline`.
+# - A third-party placeholder returns offline data only if that PlaceholderAPI expansion supports `OfflinePlayer` context.
+#
+# #### `parse-options.cooldown-milliseconds`
+#
+# - Per-target result refresh interval.
+# - Allowed range: `100..60000`. Default: `250`.
+# - Requests during cooldown receive the last cached result without a status message.
+# - Flat aliases: `cooldown-milliseconds`, `cooldown-ms`, and `cooldown`.
+#
+# #### `parse-options.max-cache-entries`
+#
+# - Maximum target result entries and positive/negative offline-name lookup attempts retained by each parse placeholder.
+# - Allowed range: `1..4096`. Default: `1024`.
+# - Flat aliases: `max-cache-entries` and `cache-size`.
+# - A target's entry is removed when that player quits.
+# - Offline lookup attempts are not evicted: after this ceiling is reached, unseen names fail closed until configuration reload. This prevents unbounded server profile-cache growth from placeholder-controlled names.
+#
+# #### `parse-options.max-output-length`
+#
+# - Maximum final output in Unicode code points.
+# - Allowed range: `1..16384`. Default: `4096`.
+# - Flat alias: `max-output-length`.
+#
+# ### Scheduler and failure behavior
+#
+# - Known offline targets are evaluated synchronously as `OfflinePlayer` contexts and use the same bounded cooldown cache.
+# - On the Bukkit/Paper primary thread, uncached target output is calculated immediately.
+# - If Bukkit/Paper calls Split away from the primary thread, target work is scheduled safely and the previous cached value is returned.
+# - On Folia, target evaluation always runs on that player's entity scheduler. Split never blocks the caller's region waiting for another region.
+# - The first uncached scheduled request can therefore return empty for one scheduler cycle. Later calls return the cached output.
+# - Concurrent refresh requests for the same target are coalesced into one scheduled task.
+# - A retired target scheduler, resolution exception, malformed selector, or unknown target fails closed to the last cached result or empty text.
+# - Parse output is literal after its one target-context pass, preventing placeholder-output injection and accidental repeated expansion.
+#
+# ## 13. Nested Placeholders and Safety Behavior
 #
 # - Circular `%split_*%` references are detected per thread.
 # - A repeated key returns a visible loop marker instead of recursing forever.
@@ -558,8 +661,9 @@
 # - Folia-specific classes are isolated behind a runtime bridge, preserving one-JAR Spigot/Paper compatibility.
 # - No classic Bukkit scheduler call is made on Folia; entity, global-region, and async ownership rules are respected.
 # - Adaptive limits bound source entries, cache size, counting, and generated output.
+# - Parse uses exact online/known-offline matching, bounded positive/negative lookups, bounded UUID results, online-target entity scheduling, and a final output limit.
 #
-# ## 13. Troubleshooting
+# ## 14. Troubleshooting
 #
 # ### `%split_key%` appears unchanged
 #
@@ -573,6 +677,16 @@
 # - Confirm Floodgate is installed and enabled.
 # - Confirm the queried player is online.
 # - Split intentionally treats unverifiable players according to `default-to-java-on-null`.
+#
+# ### A parse placeholder returns empty
+#
+# - Confirm `parse` resolves to the exact name of an online player or a player who has joined the server before.
+# - Confirm `parse-options.allow-offline` is `true` when the target is offline.
+# - Confirm the target placeholder's expansion supports offline-player context.
+# - Confirm the selected target plugin placeholder works when directly tested for that player.
+# - On Folia or an off-primary-thread Bukkit/Paper call, allow one scheduler cycle for the first uncached result.
+# - Check `parse-options.max-output-length` and run `/split reload` to surface configuration validation errors.
+# - Enable `debug` temporarily to inspect safe target-resolution diagnostics.
 #
 # ### Adaptive count looks too large
 #
@@ -608,21 +722,22 @@
 #
 # `<anahtar>`, `placeholders.yml` dosyasındaki üst seviye bir bölümdür. Örneğin `sunucu_etiketi` anahtarı `%split_sunucu_etiketi%` olarak kullanılır.
 #
-# Split dört placeholder tipini destekler:
+# Split beş placeholder tipini destekler:
 #
 # 1. `simple` — Java veya Bedrock değerini seçer.
 # 2. `switch` — çözümlenen kaynak değerini tanımlı bir durumla eşleştirir.
 # 3. `expression` — güvenli bir mantıksal/karşılaştırmalı formül hesaplar.
 # 4. `adaptive` — çözümlenmiş metni ölçerek sayı, tekrarlanan çıktı veya özel şablon üretir.
+# 5. `parse` — çevrimiçi veya bilinen çevrimdışı oyuncunun placeholder'larını o oyuncu bağlamında çözümler.
 #
-# Placeholder anahtarları ve tip adları büyük/küçük harfe duyarsızdır. `simple`, `switch` ve `expression` sonuçları başka PlaceholderAPI placeholder'ları içerebilir; Split bunları nihai sonuçtan önce çözümler. Adaptive kaynaklar ayarlanan cooldown dolunca yenilenir, adaptive sonuç ise güvenlik nedeniyle literal döndürülür.
+# Placeholder anahtarları ve tip adları büyük/küçük harfe duyarsızdır. `simple`, `switch` ve `expression` sonuçları başka PlaceholderAPI placeholder'ları içerebilir; Split bunları nihai sonuçtan önce çözümler. Parse seçicisi ve seçilen hedef şablonu kendi oyuncu bağlamlarında yalnızca birer kez ayrıştırılır, ardından sonuç literal döner. Adaptive kaynaklar ayarlanan cooldown dolunca yenilenir, adaptive sonuç ise güvenlik nedeniyle literal döndürülür.
 #
 # ## 2. Gereksinimler ve Kurulum
 #
 # - Java 21.
 # - Spigot/Paper uyumlu sunucu veya Folia. Build hedefi Spigot API 1.20.4'tür.
 # - `%split_*%` placeholder'larını kaydetmek ve kullanmak için PlaceholderAPI gereklidir. Split 2.12.2 ile build edilir; Folia, Folia destekli PlaceholderAPI sürümü (2.11.7 veya üzeri) gerektirir.
-# - Floodgate isteğe bağlıdır. Floodgate yoksa çevrimiçi oyuncular `simple` placeholder'larda Java oyuncusu sayılır.
+# - Floodgate isteğe bağlıdır. Floodgate yoksa çevrimiçi oyuncular `simple` ve `parse` placeholder'larda Java oyuncusu sayılır.
 #
 # Kurulum:
 #
@@ -644,6 +759,7 @@
 # - Bukkit/Paper üzerinde Split eşdeğer klasik Bukkit scheduler yollarını kullanır.
 # - Kapanış yeni görevleri reddeder ve sahip olunan async/global görevleri iptal eder. Retired oyuncu cevabı güvenle bırakılır.
 # - PlaceholderAPI senkron sonuç ister. Split bu yüzden placeholder'ları çağıranın geçerli bağlamında hesaplar ve bir Folia bölgesini başka bölgeyi bekleyerek bloklamaz.
+# - Bölgeler arası `parse` hedef işi bloklamadan hedef oyuncunun entity scheduler'ında çalışır. İlk cache'siz istek bir scheduler döngüsü boyunca boş olabilir; sonraki çağrılar sınırlı sonuç cache'ini kullanır.
 #
 # ## 3. Dosyalar ve Geçerlilikleri
 #
@@ -738,14 +854,15 @@
 # %split_karsilama_metni%
 # ```
 #
-# Standart tip adları `simple`, `switch`, `expression` ve `adaptive` şeklindedir. Adaptive, uyumluluk için `adaptive-space`, `adaptive_spacing` ve `adaptive-spacing` adlarını da kabul eder. Açıkça yazılan bilinmeyen tipler reddedilir; böylece yazım hatası sessizce yanlış davranışı etkinleştirmez.
+# Standart tip adları `simple`, `parse`, `switch`, `expression` ve `adaptive` şeklindedir. Adaptive, uyumluluk için `adaptive-space`, `adaptive_spacing` ve `adaptive-spacing` adlarını da kabul eder. Açıkça yazılan bilinmeyen tipler reddedilir; böylece yazım hatası sessizce yanlış davranışı etkinleştirmez.
 #
 # `type` yazılmazsa Split şu sırayla tip çıkarımı yapar:
 #
-# 1. `switch` anahtarı varsa `switch`.
-# 2. `formule` anahtarı varsa `expression`.
-# 3. `source` anahtarı veya `calculation` bölümü varsa `adaptive`.
-# 4. Hiçbiri yoksa `simple`.
+# 1. `parse` anahtarı varsa `parse`.
+# 2. `switch` anahtarı varsa `switch`.
+# 3. `formule` anahtarı varsa `expression`.
+# 4. `source` anahtarı veya `calculation` bölümü varsa `adaptive`.
+# 5. Hiçbiri yoksa `simple`.
 #
 # ## 8. `simple` Placeholder
 #
@@ -1129,7 +1246,107 @@
 #
 # Her adaptive kaynak öğesi yenileme başına bir kez ayrıştırılır. Üretilen sonuç tekrar PlaceholderAPI'ye verilmez. Bu nedenle `%`, `%player_name%` veya yüzde içeren başka bir değer tekrarlandığında literal kalır. Yanlışlıkla recursive expansion ve işlem yükü katlanması engellenir. Çözülmüş ve birleştirilmiş kaynak sonuçta gösterilecekse template modundaki `{source}` kullanılmalıdır.
 #
-# ## 12. İç İçe Placeholder ve Güvenlik Davranışı
+# ## 12. `parse` Placeholder — Hedef Oyuncu Bağlamı
+#
+# Parse placeholder bir placeholder'dan oyuncu adını alır, ardından başka bir şablonu tam eşleşen çevrimiçi veya bilinen çevrimdışı oyuncu bağlamında hesaplar. Örneğin `%example_player%`, `Alex` döndürürse `%example_java%` veya `%example_bedrock%`, `%split_example_target%` isteyen oyuncuyla değil Alex bağlamında çalışır.
+#
+# ```yaml
+# example_target:
+#   type: "parse"
+#   parse: "%example_player%"
+#   java: "%example_java%"
+#   bedrock: "%example_bedrock%"
+#   parse-options:
+#     allow-offline: true
+#     cooldown-milliseconds: 250
+#     max-cache-entries: 1024
+#     max-output-length: 4096
+# ```
+#
+# Kullanımı:
+#
+# ```text
+# %split_example_target%
+# ```
+#
+# ### İşlem sırası
+#
+# 1. Yapılandırılmış `parse` seçicisini `%split_<anahtar>%` isteyen oyuncuyla bir kez çözümle.
+# 2. Sonucu kırp; en fazla 64 Unicode code point olan ve yalnızca harf, rakam, boşluk, `_`, `-` veya `.` içeren hedef ad olarak doğrula.
+# 3. Önce tam eşleşen çevrimiçi oyuncuyu ara.
+# 4. `allow-offline` açıksa yalnızca sunucuya daha önce katılmış tam eşleşen bilinen profili kabul et. Bilinmeyen profil güvenli biçimde boş döner.
+# 5. Hedef UUID'yi Floodgate ile kontrol et; Floodgate yoksa hedefi Java kabul et.
+# 6. `java` veya `bedrock` değerini seçip hedef oyuncu bağlamında yalnızca bir kez PlaceholderAPI ile çözümle.
+# 7. Çıktıyı sınırla, hedef UUID ile cache'e al ve başka PlaceholderAPI geçişi yapmadan literal döndür.
+#
+# ### Tüm ayarlar
+#
+# #### `type`
+#
+# - Standart değer: `parse`.
+# - Üst seviyede `parse` anahtarı varsa tip çıkarımı önce parse modunu seçtiği için isteğe bağlıdır.
+#
+# #### `parse`
+#
+# - Zorunlu ve boş olmayan seçici metindir.
+# - Düz metin, tek placeholder veya bitişik birden çok placeholder içerebilir.
+# - `%split_<anahtar>%` isteyen oyuncu bağlamında çözülür.
+# - Çevrimiçi veya izin verildiğinde bilinen çevrimdışı oyuncunun tam adını üretmelidir.
+# - Hedef-ad sınırı 64 Unicode code point'tir; yalnızca harf, rakam, boşluk, `_`, `-` ve `.` kabul edilir.
+#
+# #### `java`
+#
+# - Tam hedef Java oyuncusuysa veya Floodgate yoksa seçilen şablondur.
+# - Hedef oyuncu bağlamında bir kez ayrıştırılır.
+# - Varsayılan: boş metin.
+#
+# #### `bedrock`
+#
+# - Floodgate tam hedefi Bedrock olarak doğrularsa seçilen şablondur.
+# - Hedef oyuncu bağlamında bir kez ayrıştırılır.
+# - Varsayılan: boş metin.
+#
+# #### `parse-options.allow-offline`
+#
+# - Boolean; varsayılan `true`.
+# - `true`: sunucuya daha önce katılmış tam eşleşen profil çevrimdışıyken kullanılabilir.
+# - `false`: yalnızca o anda çevrimiçi olan tam hedef kabul edilir.
+# - Düz alias: `allow-offline`.
+# - Üçüncü taraf placeholder yalnızca kendi PlaceholderAPI expansion'ı `OfflinePlayer` bağlamını destekliyorsa çevrimdışı veri döndürür.
+#
+# #### `parse-options.cooldown-milliseconds`
+#
+# - Hedef başına sonuç yenileme aralığıdır.
+# - İzin verilen aralık `100..60000`, varsayılan `250` değeridir.
+# - Cooldown içindeki çağrılar durum mesajı eklenmeden son cache sonucunu alır.
+# - Düz alias'lar: `cooldown-milliseconds`, `cooldown-ms` ve `cooldown`.
+#
+# #### `parse-options.max-cache-entries`
+#
+# - Her parse placeholder'ın sakladığı hedef sonuçlarıyla olumlu/olumsuz çevrimdışı ad aramalarının üst sınırıdır.
+# - İzin verilen aralık `1..4096`, varsayılan `1024` değeridir.
+# - Düz alias'lar: `max-cache-entries` ve `cache-size`.
+# - Hedef oyuncu çıktığında cache girdisi kaldırılır.
+# - Çevrimdışı arama denemeleri tahliye edilmez; tavan dolunca görülmemiş adlar reload'a kadar güvenli biçimde reddedilir. Bu, placeholder kontrollü adların sunucu profil cache'ini sınırsız büyütmesini engeller.
+#
+# #### `parse-options.max-output-length`
+#
+# - Unicode code point cinsinden nihai çıktı sınırıdır.
+# - İzin verilen aralık `1..16384`, varsayılan `4096` değeridir.
+# - Düz alias: `max-output-length`.
+#
+# ### Scheduler ve hata davranışı
+#
+# - Bilinen çevrimdışı hedefler `OfflinePlayer` bağlamında senkron hesaplanır ve aynı sınırlı cooldown cache'ini kullanır.
+# - Bukkit/Paper ana thread'inde cache'siz hedef çıktı anında hesaplanır.
+# - Bukkit/Paper Split'i ana thread dışında çağırırsa hedef işi güvenle scheduler'a taşınır ve önceki cache değeri döner.
+# - Folia üzerinde hedef hesaplama her zaman hedef oyuncunun entity scheduler'ında çalışır. Split, başka bölgeyi beklerken çağıranın region thread'ini asla bloklamaz.
+# - Bu nedenle ilk cache'siz scheduler isteği bir scheduler döngüsü boyunca boş dönebilir; sonraki çağrılar cache çıktısını alır.
+# - Aynı hedef için eşzamanlı yenileme istekleri tek scheduler görevinde birleştirilir.
+# - Retired hedef scheduler, çözümleme exception'ı, bozuk seçici veya bilinmeyen hedef; son cache sonucuna ya da boş metne güvenli biçimde düşer.
+# - Parse çıktısı tek hedef-bağlamı geçişinden sonra literaldir; placeholder çıktısı enjeksiyonunu ve istemsiz tekrar ayrıştırmayı engeller.
+#
+# ## 13. İç İçe Placeholder ve Güvenlik Davranışı
 #
 # - Döngüsel `%split_*%` referansları thread bazında algılanır.
 # - Tekrar eden anahtar sonsuz recursion yerine görünür bir loop işareti döndürür.
@@ -1140,8 +1357,9 @@
 # - Folia'ya özel sınıflar runtime köprüsünün arkasında yalıtılır; tek JAR ile Spigot/Paper uyumluluğu korunur.
 # - Folia üzerinde klasik Bukkit scheduler çağrısı yapılmaz; entity, global-region ve async sahiplik kurallarına uyulur.
 # - Adaptive sınırlar kaynak öğelerini, cache boyutunu, sayımı ve üretilen çıktı yükünü kontrol altında tutar.
+# - Parse; tam çevrimiçi/bilinen-çevrimdışı eşleşme, sınırlı olumlu/olumsuz arama ve UUID sonuç cache'i, çevrimiçi hedef entity scheduler'ı ve nihai çıktı limiti kullanır.
 #
-# ## 13. Sorun Giderme
+# ## 14. Sorun Giderme
 #
 # ### `%split_anahtar%` değişmeden görünüyor
 #
@@ -1155,6 +1373,16 @@
 # - Floodgate'in kurulu ve etkin olduğunu doğrulayın.
 # - Sorgulanan oyuncunun çevrimiçi olduğunu doğrulayın.
 # - Split'in doğrulanamayan oyuncuları `default-to-java-on-null` ayarına göre işlediğini unutmayın.
+#
+# ### Parse placeholder boş dönüyor
+#
+# - `parse` alanının çevrimiçi veya sunucuya daha önce katılmış oyuncunun tam adına çözüldüğünü doğrulayın.
+# - Hedef çevrimdışıysa `parse-options.allow-offline` değerinin `true` olduğunu doğrulayın.
+# - Hedef placeholder'ın expansion'ının çevrimdışı oyuncu bağlamını desteklediğini doğrulayın.
+# - Seçilen hedef plugin placeholder'ının doğrudan o oyuncu için çalıştığını kontrol edin.
+# - Folia veya ana thread dışındaki Bukkit/Paper çağrısında ilk cache'siz sonuç için bir scheduler döngüsü bekleyin.
+# - `parse-options.max-output-length` değerini kontrol edin ve yapılandırma doğrulama hatalarını görmek için `/split reload` çalıştırın.
+# - Güvenli hedef çözümleme teşhisleri için `debug` ayarını geçici olarak açın.
 #
 # ### Adaptive sayı beklenenden büyük
 #
